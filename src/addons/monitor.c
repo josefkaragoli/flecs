@@ -59,6 +59,8 @@ void UpdateWorldSummary(ecs_iter_t *it) {
         summary[i].merge_time_total = (double)info->merge_time_total;
 
         summary[i].frame_count ++;
+
+        summary[i].build_info = *ecs_get_build_info();
     }
 }
 
@@ -322,7 +324,7 @@ void FlecsMonitorImport(
 #ifdef FLECS_UNITS
     ECS_IMPORT(world, FlecsUnits);
 #endif
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsMonitor), 
         "Module that automatically monitors statistics for the world & systems");
@@ -338,7 +340,8 @@ void FlecsMonitorImport(
 
     ECS_COMPONENT_DEFINE(world, EcsWorldSummary);
 
-#if defined(FLECS_META) && defined(FLECS_UNITS)
+#if defined(FLECS_META) && defined(FLECS_UNITS) 
+    ecs_entity_t build_info = ecs_lookup(world, "flecs.core.build_info_t");
     ecs_struct(world, {
         .entity = ecs_id(EcsWorldSummary),
         .members = {
@@ -349,7 +352,8 @@ void FlecsMonitorImport(
             { .name = "frame_time_last", .type = ecs_id(ecs_f64_t), .unit = EcsSeconds  },
             { .name = "system_time_last", .type = ecs_id(ecs_f64_t), .unit = EcsSeconds  },
             { .name = "merge_time_last", .type = ecs_id(ecs_f64_t), .unit = EcsSeconds  },
-            { .name = "frame_count", .type = ecs_id(ecs_u64_t)  }
+            { .name = "frame_count", .type = ecs_id(ecs_u64_t) },
+            { .name = "build_info", .type = build_info }
         }
     });
 #endif

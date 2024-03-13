@@ -32,6 +32,13 @@
  * @{
  */
 
+/* Flecs version macro */
+#define FLECS_VERSION_MAJOR 3
+#define FLECS_VERSION_MINOR 2
+#define FLECS_VERSION_PATCH 12
+#define FLECS_VERSION FLECS_VERSION_IMPL(\
+    FLECS_VERSION_MAJOR, FLECS_VERSION_MINOR, FLECS_VERSION_PATCH)
+
 /** @def FLECS_CONFIG_HEADER
  * Allows for including a user-customizable header that specifies compile-time 
  * features. */
@@ -185,7 +192,6 @@
 #define FLECS_EXPR          /**< Parsing strings to/from component values */
 #define FLECS_JSON          /**< Parsing JSON to/from component values */
 #define FLECS_DOC           /**< Document entities & components */
-#define FLECS_COREDOC       /**< Documentation for core entities & components */
 #define FLECS_LOG           /**< When enabled ECS provides more detailed logs */
 #define FLECS_APP           /**< Application addon */
 #define FLECS_OS_API_IMPL   /**< Default implementation for OS API */
@@ -793,6 +799,11 @@ typedef struct ecs_allocator_t ecs_allocator_t;
 #define ECS_NEQ(a, b) (!ECS_EQ(a, b))
 #define ECS_EQZERO(a) ECS_EQ(a, (uint64_t){0})
 #define ECS_NEQZERO(a) ECS_NEQ(a, (uint64_t){0})
+
+/* Utilities to convert flecs version to string */
+#define FLECS_VERSION_IMPLSTR(major, minor, patch) #major "." #minor "." #patch
+#define FLECS_VERSION_IMPL(major, minor, patch) \
+    FLECS_VERSION_IMPLSTR(major, minor, patch)
 
 #define ECS_CONCAT(a, b) a ## b
 
@@ -2313,6 +2324,7 @@ void ecs_os_set_api_defaults(void);
 #if !defined(ECS_TARGET_POSIX) && !defined(ECS_TARGET_MINGW)
 #define ecs_os_strcat(str1, str2) strcat_s(str1, INT_MAX, str2)
 #define ecs_os_sprintf(ptr, ...) sprintf_s(ptr, INT_MAX, __VA_ARGS__)
+#define ecs_os_snprintf(ptr, len, ...) sprintf_s(ptr, len, __VA_ARGS__)
 #define ecs_os_vsprintf(ptr, fmt, args) vsprintf_s(ptr, INT_MAX, fmt, args)
 #define ecs_os_strcpy(str1, str2) strcpy_s(str1, INT_MAX, str2)
 #ifdef __cplusplus
@@ -2323,6 +2335,7 @@ void ecs_os_set_api_defaults(void);
 #else
 #define ecs_os_strcat(str1, str2) strcat(str1, str2)
 #define ecs_os_sprintf(ptr, ...) sprintf(ptr, __VA_ARGS__)
+#define ecs_os_snprintf(ptr, len, ...) snprintf(ptr, len, __VA_ARGS__)
 #define ecs_os_vsprintf(ptr, fmt, args) vsprintf(ptr, fmt, args)
 #define ecs_os_strcpy(str1, str2) strcpy(str1, str2)
 #ifdef __cplusplus
@@ -3977,6 +3990,18 @@ typedef struct ecs_value_t {
     void *ptr;
 } ecs_value_t;
 
+/** Type with information about the current Flecs build */
+typedef struct ecs_build_info_t {
+    const char *compiler;           /**< Compiler used to compile flecs */
+    const char **addons;            /**< Addons included in build */
+    const char *version;            /**< Stringified version */
+    int16_t version_major;          /**< Major flecs version */
+    int16_t version_minor;          /**< Minor flecs version */
+    int16_t version_patch;          /**< Patch flecs version */
+    bool debug;                     /**< Is this a debug build */
+    bool sanitize;                  /**< Is this a sanitize build */
+} ecs_build_info_t;
+
 /** Type that contains information about the world. */
 typedef struct ecs_world_info_t {
     ecs_entity_t last_component_id;   /**< Last issued component entity id */
@@ -4916,6 +4941,11 @@ void* ecs_get_ctx(
 FLECS_API
 void* ecs_get_binding_ctx(
     const ecs_world_t *world);
+
+/** Get build info.
+ *  Returns information about the current Flecs build.
+ */
+const ecs_build_info_t* ecs_get_build_info(void);
 
 /** Get world info.
  *
@@ -9592,9 +9622,6 @@ int ecs_value_move_ctor(
 #ifdef FLECS_NO_DOC
 #undef FLECS_DOC
 #endif
-#ifdef FLECS_NO_COREDOC
-#undef FLECS_COREDOC
-#endif
 #ifdef FLECS_NO_LOG
 #undef FLECS_LOG
 #endif
@@ -12475,6 +12502,9 @@ typedef struct {
 
     /* Frame count */
     int64_t frame_count;        /**< Number of frames processed */
+
+    /* Build info */
+    ecs_build_info_t build_info; /**< Build info */
 } EcsWorldSummary;
 
 /* Module import */
@@ -12489,61 +12519,6 @@ void FlecsMonitorImport(
 #endif
 
 /** @} */
-
-#endif
-
-#endif
-
-#ifdef FLECS_COREDOC
-#ifdef FLECS_NO_COREDOC
-#error "FLECS_NO_COREDOC failed: COREDOC is required by other addons"
-#endif
-/**
- * @file addons/coredoc.h
- * @brief Core doc module.
- *
- * The core doc module imports documentation and reflection data for core
- * components, tags and systems.
- */
-
-#ifdef FLECS_COREDOC
-
-#ifndef FLECS_DOC
-#define FLECS_DOC
-#endif
-
-#ifndef FLECS_META
-#define FLECS_META
-#endif
-
-#ifndef FLECS_COREDOC_H
-#define FLECS_COREDOC_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * @defgroup c_addons_coredoc Coredoc
- * @ingroup c_addons
- * Module that adds documentation and reflection to core entities.
- *
- * @{
- */
-
-/* Module import */
-
-FLECS_API
-void FlecsCoreDocImport(
-    ecs_world_t *world);
-
-/** @} */
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
 
 #endif
 

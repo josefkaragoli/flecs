@@ -22528,6 +22528,7 @@ static ecs_entity_t ecs_default_lookup_path[2] = { 0, 0 };
 
 /* Declarations for addons. Located in world.c to avoid issues during linking of 
  * static library */
+
 #ifdef FLECS_ALERTS
 ECS_COMPONENT_DECLARE(EcsAlert);
 ECS_COMPONENT_DECLARE(EcsAlertInstance);
@@ -23122,92 +23123,164 @@ void flecs_world_allocators_fini(
     flecs_allocator_fini(&world->allocator);
 }
 
+#define FLECS_COMPILER_INFO_MAX (64)
+static char flecs_compiler_info[FLECS_COMPILER_INFO_MAX] = {0};
+static bool flecs_compiler_info_initialized = false;
+static const char *flecs_addons_info[] = {
+#ifdef FLECS_CPP
+    "FLECS_CPP",
+#endif
+#ifdef FLECS_MODULE
+    "FLECS_MODULE",
+#endif
+#ifdef FLECS_PARSER
+    "FLECS_PARSER",
+#endif
+#ifdef FLECS_PLECS
+    "FLECS_PLECS",
+#endif
+#ifdef FLECS_RULES
+    "FLECS_RULES",
+#endif
+#ifdef FLECS_SNAPSHOT
+    "FLECS_SNAPSHOT",
+#endif
+#ifdef FLECS_STATS
+    "FLECS_STATS",
+#endif
+#ifdef FLECS_MONITOR
+    "FLECS_MONITOR",
+#endif
+#ifdef FLECS_METRICS
+    "FLECS_METRICS",
+#endif
+#ifdef FLECS_ALERTS
+    "FLECS_ALERTS",
+#endif
+#ifdef FLECS_SYSTEM
+    "FLECS_SYSTEM",
+#endif
+#ifdef FLECS_PIPELINE
+    "FLECS_PIPELINE",
+#endif
+#ifdef FLECS_TIMER
+    "FLECS_TIMER",
+#endif
+#ifdef FLECS_META
+    "FLECS_META",
+#endif
+#ifdef FLECS_META_C
+    "FLECS_META_C",
+#endif
+#ifdef FLECS_UNITS
+    "FLECS_UNITS",
+#endif
+#ifdef FLECS_EXPR
+    "FLECS_EXPR",
+#endif
+#ifdef FLECS_JSON
+    "FLECS_JSON",
+#endif
+#ifdef FLECS_DOC
+    "FLECS_DOC",
+#endif
+#ifdef FLECS_LOG
+    "FLECS_LOG",
+#endif
+#ifdef FLECS_JOURNAL
+    "FLECS_JOURNAL",
+#endif
+#ifdef FLECS_APP
+    "FLECS_APP",
+#endif
+#ifdef FLECS_OS_API_IMPL
+    "FLECS_OS_API_IMPL",
+#endif
+#ifdef FLECS_SCRIPT
+    "FLECS_SCRIPT",
+#endif
+#ifdef FLECS_HTTP
+    "FLECS_HTTP",
+#endif
+#ifdef FLECS_REST
+    "FLECS_REST",
+#endif
+NULL
+};
+
+static ecs_build_info_t flecs_build_info = {
+    .compiler = flecs_compiler_info,
+    .addons = flecs_addons_info,
+#ifdef FLECS_DEBUG
+    .debug = true,
+#endif
+#ifdef FLECS_SANITIZE
+    .sanitize = true,
+#endif
+    .version = FLECS_VERSION,
+    .version_major = FLECS_VERSION_MAJOR,
+    .version_minor = FLECS_VERSION_MINOR,
+    .version_patch = FLECS_VERSION_PATCH
+};
+
 static
-void flecs_log_addons(void) {
+void flecs_log_build_info(void) {
+    const ecs_build_info_t *bi = ecs_get_build_info();
+    ecs_assert(bi != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    ecs_trace("flecs version %s", bi->version);
+
     ecs_trace("addons included in build:");
     ecs_log_push();
-    #ifdef FLECS_CPP
-        ecs_trace("FLECS_CPP");
-    #endif
-    #ifdef FLECS_MODULE
-        ecs_trace("FLECS_MODULE");
-    #endif
-    #ifdef FLECS_PARSER
-        ecs_trace("FLECS_PARSER");
-    #endif
-    #ifdef FLECS_PLECS
-        ecs_trace("FLECS_PLECS");
-    #endif
-    #ifdef FLECS_RULES
-        ecs_trace("FLECS_RULES");
-    #endif
-    #ifdef FLECS_SNAPSHOT
-        ecs_trace("FLECS_SNAPSHOT");
-    #endif
-    #ifdef FLECS_STATS
-        ecs_trace("FLECS_STATS");
-    #endif
-    #ifdef FLECS_MONITOR
-        ecs_trace("FLECS_MONITOR");
-    #endif
-    #ifdef FLECS_METRICS
-        ecs_trace("FLECS_METRICS");
-    #endif
-    #ifdef FLECS_SYSTEM
-        ecs_trace("FLECS_SYSTEM");
-    #endif
-    #ifdef FLECS_PIPELINE
-        ecs_trace("FLECS_PIPELINE");
-    #endif
-    #ifdef FLECS_TIMER
-        ecs_trace("FLECS_TIMER");
-    #endif
-    #ifdef FLECS_META
-        ecs_trace("FLECS_META");
-    #endif
-    #ifdef FLECS_META_C
-        ecs_trace("FLECS_META_C");
-    #endif
-    #ifdef FLECS_UNITS
-        ecs_trace("FLECS_UNITS");
-    #endif
-    #ifdef FLECS_EXPR
-        ecs_trace("FLECS_EXPR");
-    #endif
-    #ifdef FLECS_JSON
-        ecs_trace("FLECS_JSON");
-    #endif
-    #ifdef FLECS_DOC
-        ecs_trace("FLECS_DOC");
-    #endif
-    #ifdef FLECS_COREDOC
-        ecs_trace("FLECS_COREDOC");
-    #endif
-    #ifdef FLECS_LOG
-        ecs_trace("FLECS_LOG");
-    #endif
-    #ifdef FLECS_JOURNAL
-        ecs_trace("FLECS_JOURNAL");
-    #endif
-    #ifdef FLECS_APP
-        ecs_trace("FLECS_APP");
-    #endif
-    #ifdef FLECS_OS_API_IMPL
-        ecs_trace("FLECS_OS_API_IMPL");
-    #endif
-    #ifdef FLECS_SCRIPT
-        ecs_trace("FLECS_SCRIPT");
-    #endif
-    #ifdef FLECS_HTTP
-        ecs_trace("FLECS_HTTP");
-    #endif
-    #ifdef FLECS_REST
-        ecs_trace("FLECS_REST");
-    #endif
+
+    const char **addon = bi->addons;
+    do {
+        ecs_trace(addon[0]);
+    } while ((++ addon)[0]);
     ecs_log_pop();
+
+    if (bi->sanitize) {
+        ecs_trace("sanitize build, rebuild without FLECS_SANITIZE for (much) "
+            "improved performance");
+    } else if (bi->debug) {
+        ecs_trace("debug build, rebuild with NDEBUG or FLECS_NDEBUG for "
+            "improved performance");
+    } else {
+        ecs_trace("#[green]release#[reset] build");
+    }
+
+    ecs_trace("compiled with %s", bi->compiler);
 }
 
 /* -- Public functions -- */
+
+const ecs_build_info_t* ecs_get_build_info(void) {
+    if (!flecs_compiler_info_initialized) {
+    #ifdef __clang__
+        ecs_os_snprintf(flecs_compiler_info, FLECS_COMPILER_INFO_MAX, 
+            "clang %s", __clang_version__);
+    #elif defined(__GNUC__)
+        ecs_os_snprintf(flecs_compiler_info, FLECS_COMPILER_INFO_MAX, 
+            "gcc %d.%d", __GNUC__, __GNUC_MINOR__);
+    #elif defined (_MSC_VER)
+        ecs_os_snprintf(flecs_compiler_info, FLECS_COMPILER_INFO_MAX, 
+            "msvc %d", _MSC_VER);
+    #elif defined (__TINYC__)
+        ecs_os_snprintf(flecs_compiler_info, FLECS_COMPILER_INFO_MAX, 
+            "tcc %d", __TINYC__);
+    #endif
+        flecs_compiler_info_initialized = true;
+    }
+
+    return &flecs_build_info;
+}
+
+const ecs_world_info_t* ecs_get_world_info(
+    const ecs_world_t *world)
+{
+    world = ecs_get_world(world);
+    return &world->info;
+}
 
 ecs_world_t *ecs_mini(void) {
 #ifdef FLECS_OS_API_IMPL
@@ -23232,27 +23305,7 @@ ecs_world_t *ecs_mini(void) {
         ecs_trace("time management not available");
     }
 
-    flecs_log_addons();
-
-#ifdef FLECS_SANITIZE
-    ecs_trace("sanitize build, rebuild without FLECS_SANITIZE for (much) "
-        "improved performance");
-#elif defined(FLECS_DEBUG)
-    ecs_trace("debug build, rebuild with NDEBUG or FLECS_NDEBUG for improved "
-        "performance");
-#else
-    ecs_trace("#[green]release#[reset] build");
-#endif
-
-#ifdef __clang__
-    ecs_trace("compiled with clang %s", __clang_version__);
-#elif defined(__GNUC__)
-    ecs_trace("compiled with gcc %d.%d", __GNUC__, __GNUC_MINOR__);
-#elif defined (_MSC_VER)
-    ecs_trace("compiled with msvc %d", _MSC_VER);
-#elif defined (__TINYC__)
-    ecs_trace("compiled with tcc %d", __TINYC__);
-#endif
+    flecs_log_build_info();
 
     ecs_world_t *world = ecs_os_calloc_t(ecs_world_t);
     ecs_assert(world != NULL, ECS_OUT_OF_MEMORY, NULL);
@@ -23323,9 +23376,6 @@ ecs_world_t *ecs_init(void) {
 #endif
 #ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
-#endif
-#ifdef FLECS_COREDOC
-    ECS_IMPORT(world, FlecsCoreDoc);
 #endif
 #ifdef FLECS_SCRIPT
     ECS_IMPORT(world, FlecsScript);
@@ -24260,13 +24310,6 @@ void ecs_frame_end(
     flecs_stop_measure_frame(world);
 error:
     return;
-}
-
-const ecs_world_info_t* ecs_get_world_info(
-    const ecs_world_t *world)
-{
-    world = ecs_get_world(world);
-    return &world->info;
 }
 
 void flecs_delete_table(
@@ -25480,159 +25523,6 @@ int ecs_app_set_frame_action(
 #endif
 
 /**
- * @file addons/coredoc.c
- * @brief Core doc addon.
- */
-
-
-#ifdef FLECS_COREDOC
-
-#define URL_ROOT "https://www.flecs.dev/flecs/md_docs_2Relationships.html"
-
-void FlecsCoreDocImport(
-    ecs_world_t *world)
-{    
-    ECS_MODULE(world, FlecsCoreDoc);
-
-    ECS_IMPORT(world, FlecsMeta);
-    ECS_IMPORT(world, FlecsDoc);
-
-    ecs_set_name_prefix(world, "Ecs");
-
-    /* Initialize reflection data for core components */
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsComponent),
-        .members = {
-            {.name = "size", .type = ecs_id(ecs_i32_t)},
-            {.name = "alignment", .type = ecs_id(ecs_i32_t)}
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsDocDescription),
-        .members = {
-            {.name = "value", .type = ecs_id(ecs_string_t)}
-        }
-    });
-
-    /* Initialize documentation data for core components */
-    ecs_doc_set_brief(world, EcsFlecs, "Flecs root module");
-    ecs_doc_set_link(world, EcsFlecs, "https://github.com/SanderMertens/flecs");
-    ecs_doc_set_brief(world, EcsFlecsCore, "Module with builtin components");
-    ecs_doc_set_brief(world, EcsFlecsInternals, "Module with internal entities");
-
-    ecs_doc_set_brief(world, EcsWorld, "Entity associated with world");
-
-    ecs_doc_set_brief(world, ecs_id(EcsComponent), "Component that is added to components");
-    ecs_doc_set_brief(world, EcsModule, "Tag that is added to modules");
-    ecs_doc_set_brief(world, EcsPrefab, "Tag that is added to prefabs");
-    ecs_doc_set_brief(world, EcsDisabled, "Tag that is added to disabled entities");
-    ecs_doc_set_brief(world, EcsPrivate, "Tag that is added to private components");
-    ecs_doc_set_brief(world, EcsFlag, "Internal tag for tracking ids with special id flags");
-    ecs_doc_set_brief(world, ecs_id(EcsIterable), "Internal component to make (query) entities iterable");
-    ecs_doc_set_brief(world, ecs_id(EcsPoly), "Internal component that stores pointer to poly objects");
-    
-    ecs_doc_set_brief(world, ecs_id(EcsTarget), "Internal component that stores information for flattened trees");
-    ecs_doc_set_brief(world, EcsFlatten, "Tag that when added to assembly automatically flattens tree");
-
-    ecs_doc_set_brief(world, ecs_id(EcsIdentifier), "Component used for entity names");
-    ecs_doc_set_brief(world, EcsName, "Tag used with EcsIdentifier to store entity name");
-    ecs_doc_set_brief(world, EcsSymbol, "Tag used with EcsIdentifier to store entity symbol");
-    ecs_doc_set_brief(world, EcsAlias, "Tag used with EcsIdentifier to store entity alias");
-    
-    ecs_doc_set_brief(world, EcsQuery, "Tag added to query entities");
-    ecs_doc_set_brief(world, EcsObserver, "Tag added to observer entities");
-
-    ecs_doc_set_brief(world, EcsTransitive, "Trait that enables transitive evaluation of relationships");
-    ecs_doc_set_brief(world, EcsReflexive, "Trait that enables reflexive evaluation of relationships");
-    ecs_doc_set_brief(world, EcsFinal, "Trait that indicates an entity cannot be inherited from");
-    ecs_doc_set_brief(world, EcsDontInherit, "Trait that indicates it should not be inherited");
-    ecs_doc_set_brief(world, EcsTag, "Trait that ensures a pair cannot contain a value");
-    ecs_doc_set_brief(world, EcsAcyclic, "Trait that indicates a relationship is acyclic");
-    ecs_doc_set_brief(world, EcsTraversable, "Trait that indicates a relationship is traversable");
-    ecs_doc_set_brief(world, EcsExclusive, "Trait that ensures a relationship can only have one target");
-    ecs_doc_set_brief(world, EcsSymmetric, "Trait that causes a relationship to be two-way");
-    ecs_doc_set_brief(world, EcsWith, "Trait for adding additional components when a component is added");
-    ecs_doc_set_brief(world, EcsAlwaysOverride, "Trait that indicates a component should always be overridden");
-    ecs_doc_set_brief(world, EcsUnion, "Trait for creating a non-fragmenting relationship");
-    ecs_doc_set_brief(world, EcsOneOf, "Trait that enforces target of relationship is a child of <specified>");
-    ecs_doc_set_brief(world, EcsOnDelete, "Cleanup trait for specifying what happens when component is deleted");
-    ecs_doc_set_brief(world, EcsOnDeleteTarget, "Cleanup trait for specifying what happens when pair target is deleted");
-    ecs_doc_set_brief(world, EcsRemove, "Cleanup action used with OnDelete/OnDeleteTarget");
-    ecs_doc_set_brief(world, EcsDelete, "Cleanup action used with OnDelete/OnDeleteTarget");
-    ecs_doc_set_brief(world, EcsPanic, "Cleanup action used with OnDelete/OnDeleteTarget");
-    ecs_doc_set_brief(world, EcsDefaultChildComponent, "Sets default component hint for children of entity");
-    ecs_doc_set_brief(world, EcsIsA, "Relationship used for expressing inheritance");
-    ecs_doc_set_brief(world, EcsChildOf, "Relationship used for expressing hierarchies");
-    ecs_doc_set_brief(world, EcsDependsOn, "Relationship used for expressing dependencies");
-    ecs_doc_set_brief(world, EcsSlotOf, "Relationship used for expressing prefab slots");
-    ecs_doc_set_brief(world, EcsOnAdd, "Event emitted when component is added");
-    ecs_doc_set_brief(world, EcsOnRemove, "Event emitted when component is removed");
-    ecs_doc_set_brief(world, EcsOnSet, "Event emitted when component is set");
-    ecs_doc_set_brief(world, EcsUnSet, "Event emitted when component is unset");
-    ecs_doc_set_brief(world, EcsMonitor, "Marker used to create monitor observers");
-    ecs_doc_set_brief(world, EcsOnTableFill, "Event emitted when table becomes non-empty");
-    ecs_doc_set_brief(world, EcsOnTableEmpty, "Event emitted when table becomes empty");
-    ecs_doc_set_brief(world, EcsOnTableCreate, "Event emitted when table is created");
-    ecs_doc_set_brief(world, EcsOnTableDelete, "Event emitted when table is deleted");
-
-    ecs_doc_set_brief(world, EcsThis, "Query marker to express $this variable");
-    ecs_doc_set_brief(world, EcsWildcard, "Query marker to express match all wildcard");
-    ecs_doc_set_brief(world, EcsAny, "Query marker to express match at least one wildcard");
-
-    ecs_doc_set_brief(world, EcsPredEq, "Query marker to express == operator");
-    ecs_doc_set_brief(world, EcsPredMatch, "Query marker to express ~= operator");
-    ecs_doc_set_brief(world, EcsPredLookup, "Query marker to express by-name lookup");
-    ecs_doc_set_brief(world, EcsScopeOpen, "Query marker to express scope open");
-    ecs_doc_set_brief(world, EcsScopeClose, "Query marker to express scope close");
-    ecs_doc_set_brief(world, EcsEmpty, "Tag used to indicate a query has no results");
-    
-    /* Initialize documentation for meta components */
-    ecs_entity_t meta = ecs_lookup(world, "flecs.meta");
-    ecs_doc_set_brief(world, meta, "Flecs module with reflection components");
-
-    ecs_doc_set_brief(world, ecs_id(EcsMetaType), "Component added to types");
-    ecs_doc_set_brief(world, ecs_id(EcsMetaTypeSerialized), "Component that stores reflection data in an optimized format");
-    ecs_doc_set_brief(world, ecs_id(EcsPrimitive), "Component added to primitive types");
-    ecs_doc_set_brief(world, ecs_id(EcsEnum), "Component added to enumeration types");
-    ecs_doc_set_brief(world, ecs_id(EcsBitmask), "Component added to bitmask types");
-    ecs_doc_set_brief(world, ecs_id(EcsMember), "Component added to struct members");
-    ecs_doc_set_brief(world, ecs_id(EcsStruct), "Component added to struct types");
-    ecs_doc_set_brief(world, ecs_id(EcsArray), "Component added to array types");
-    ecs_doc_set_brief(world, ecs_id(EcsVector), "Component added to vector types");
-
-    ecs_doc_set_brief(world, ecs_id(ecs_bool_t), "bool component");
-    ecs_doc_set_brief(world, ecs_id(ecs_char_t), "char component");
-    ecs_doc_set_brief(world, ecs_id(ecs_byte_t), "byte component");
-    ecs_doc_set_brief(world, ecs_id(ecs_u8_t), "8 bit unsigned int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_u16_t), "16 bit unsigned int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_u32_t), "32 bit unsigned int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_u64_t), "64 bit unsigned int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_uptr_t), "word sized unsigned int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_i8_t), "8 bit signed int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_i16_t), "16 bit signed int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_i32_t), "32 bit signed int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_i64_t), "64 bit signed int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_iptr_t), "word sized signed int component");
-    ecs_doc_set_brief(world, ecs_id(ecs_f32_t), "32 bit floating point component");
-    ecs_doc_set_brief(world, ecs_id(ecs_f64_t), "64 bit floating point component");
-    ecs_doc_set_brief(world, ecs_id(ecs_string_t), "string component");
-    ecs_doc_set_brief(world, ecs_id(ecs_entity_t), "entity component");
-
-    /* Initialize documentation for doc components */
-    ecs_entity_t doc = ecs_lookup(world, "flecs.doc");
-    ecs_doc_set_brief(world, doc, "Flecs module with documentation components");
-
-    ecs_doc_set_brief(world, ecs_id(EcsDocDescription), "Component used to add documentation");
-    ecs_doc_set_brief(world, EcsDocBrief, "Used as (Description, Brief) to add a brief description");
-    ecs_doc_set_brief(world, EcsDocDetail, "Used as (Description, Detail) to add a detailed description");
-    ecs_doc_set_brief(world, EcsDocLink, "Used as (Description, Link) to add a link");
-}
-
-#endif
-
-/**
  * @file addons/doc.c
  * @brief Doc addon.
  */
@@ -25777,6 +25667,102 @@ const char* ecs_doc_get_color(
     }
 }
 
+/* Doc definitions for core components */
+static
+void flecs_doc_import_core_definitions(
+    ecs_world_t *world)
+{
+    ecs_doc_set_brief(world, EcsFlecs, "Flecs root module");
+    ecs_doc_set_link(world, EcsFlecs, "https://github.com/SanderMertens/flecs");
+    ecs_doc_set_brief(world, EcsFlecsCore, "Module with builtin components");
+    ecs_doc_set_brief(world, EcsFlecsInternals, "Module with internal entities");
+
+    ecs_doc_set_brief(world, EcsWorld, "Entity associated with world");
+
+    ecs_doc_set_brief(world, ecs_id(EcsComponent), "Component that is added to components");
+    ecs_doc_set_brief(world, EcsModule, "Tag that is added to modules");
+    ecs_doc_set_brief(world, EcsPrefab, "Tag that is added to prefabs");
+    ecs_doc_set_brief(world, EcsDisabled, "Tag that is added to disabled entities");
+    ecs_doc_set_brief(world, EcsPrivate, "Tag that is added to private components");
+    ecs_doc_set_brief(world, EcsFlag, "Internal tag for tracking ids with special id flags");
+    ecs_doc_set_brief(world, ecs_id(EcsIterable), "Internal component to make (query) entities iterable");
+    ecs_doc_set_brief(world, ecs_id(EcsPoly), "Internal component that stores pointer to poly objects");
+    
+    ecs_doc_set_brief(world, ecs_id(EcsTarget), "Internal component that stores information for flattened trees");
+    ecs_doc_set_brief(world, EcsFlatten, "Tag that when added to assembly automatically flattens tree");
+
+    ecs_doc_set_brief(world, ecs_id(EcsIdentifier), "Component used for entity names");
+    ecs_doc_set_brief(world, EcsName, "Tag used with EcsIdentifier to store entity name");
+    ecs_doc_set_brief(world, EcsSymbol, "Tag used with EcsIdentifier to store entity symbol");
+    ecs_doc_set_brief(world, EcsAlias, "Tag used with EcsIdentifier to store entity alias");
+    
+    ecs_doc_set_brief(world, EcsQuery, "Tag added to query entities");
+    ecs_doc_set_brief(world, EcsObserver, "Tag added to observer entities");
+
+    ecs_doc_set_brief(world, EcsTransitive, "Trait that enables transitive evaluation of relationships");
+    ecs_doc_set_brief(world, EcsReflexive, "Trait that enables reflexive evaluation of relationships");
+    ecs_doc_set_brief(world, EcsFinal, "Trait that indicates an entity cannot be inherited from");
+    ecs_doc_set_brief(world, EcsDontInherit, "Trait that indicates it should not be inherited");
+    ecs_doc_set_brief(world, EcsTag, "Trait that ensures a pair cannot contain a value");
+    ecs_doc_set_brief(world, EcsAcyclic, "Trait that indicates a relationship is acyclic");
+    ecs_doc_set_brief(world, EcsTraversable, "Trait that indicates a relationship is traversable");
+    ecs_doc_set_brief(world, EcsExclusive, "Trait that ensures a relationship can only have one target");
+    ecs_doc_set_brief(world, EcsSymmetric, "Trait that causes a relationship to be two-way");
+    ecs_doc_set_brief(world, EcsWith, "Trait for adding additional components when a component is added");
+    ecs_doc_set_brief(world, EcsAlwaysOverride, "Trait that indicates a component should always be overridden");
+    ecs_doc_set_brief(world, EcsUnion, "Trait for creating a non-fragmenting relationship");
+    ecs_doc_set_brief(world, EcsOneOf, "Trait that enforces target of relationship is a child of <specified>");
+    ecs_doc_set_brief(world, EcsOnDelete, "Cleanup trait for specifying what happens when component is deleted");
+    ecs_doc_set_brief(world, EcsOnDeleteTarget, "Cleanup trait for specifying what happens when pair target is deleted");
+    ecs_doc_set_brief(world, EcsRemove, "Cleanup action used with OnDelete/OnDeleteTarget");
+    ecs_doc_set_brief(world, EcsDelete, "Cleanup action used with OnDelete/OnDeleteTarget");
+    ecs_doc_set_brief(world, EcsPanic, "Cleanup action used with OnDelete/OnDeleteTarget");
+    ecs_doc_set_brief(world, EcsDefaultChildComponent, "Sets default component hint for children of entity");
+    ecs_doc_set_brief(world, EcsIsA, "Relationship used for expressing inheritance");
+    ecs_doc_set_brief(world, EcsChildOf, "Relationship used for expressing hierarchies");
+    ecs_doc_set_brief(world, EcsDependsOn, "Relationship used for expressing dependencies");
+    ecs_doc_set_brief(world, EcsSlotOf, "Relationship used for expressing prefab slots");
+    ecs_doc_set_brief(world, EcsOnAdd, "Event emitted when component is added");
+    ecs_doc_set_brief(world, EcsOnRemove, "Event emitted when component is removed");
+    ecs_doc_set_brief(world, EcsOnSet, "Event emitted when component is set");
+    ecs_doc_set_brief(world, EcsUnSet, "Event emitted when component is unset");
+    ecs_doc_set_brief(world, EcsMonitor, "Marker used to create monitor observers");
+    ecs_doc_set_brief(world, EcsOnTableFill, "Event emitted when table becomes non-empty");
+    ecs_doc_set_brief(world, EcsOnTableEmpty, "Event emitted when table becomes empty");
+    ecs_doc_set_brief(world, EcsOnTableCreate, "Event emitted when table is created");
+    ecs_doc_set_brief(world, EcsOnTableDelete, "Event emitted when table is deleted");
+
+    ecs_doc_set_brief(world, EcsThis, "Query marker to express $this variable");
+    ecs_doc_set_brief(world, EcsWildcard, "Query marker to express match all wildcard");
+    ecs_doc_set_brief(world, EcsAny, "Query marker to express match at least one wildcard");
+
+    ecs_doc_set_brief(world, EcsPredEq, "Query marker to express == operator");
+    ecs_doc_set_brief(world, EcsPredMatch, "Query marker to express ~= operator");
+    ecs_doc_set_brief(world, EcsPredLookup, "Query marker to express by-name lookup");
+    ecs_doc_set_brief(world, EcsScopeOpen, "Query marker to express scope open");
+    ecs_doc_set_brief(world, EcsScopeClose, "Query marker to express scope close");
+    ecs_doc_set_brief(world, EcsEmpty, "Tag used to indicate a query has no results");
+}
+
+/* Doc definitions for doc components */
+static
+void flecs_doc_import_doc_definitions(
+    ecs_world_t *world)
+{
+    ecs_entity_t doc = ecs_lookup(world, "flecs.doc");
+    ecs_doc_set_brief(world, doc, "Flecs module with documentation components");
+
+    ecs_doc_set_brief(world, EcsDocBrief, "Brief description");
+    ecs_doc_set_brief(world, EcsDocDetail, "Detailed description");
+    ecs_doc_set_brief(world, EcsDocLink, "Link to additional documentation");
+    ecs_doc_set_brief(world, EcsDocColor, "Color hint for entity");   
+
+    ecs_doc_set_brief(world, ecs_id(EcsDocDescription), "Component used to add documentation");
+    ecs_doc_set_brief(world, EcsDocBrief, "Used as (Description, Brief) to add a brief description");
+    ecs_doc_set_brief(world, EcsDocDetail, "Used as (Description, Detail) to add a detailed description");
+    ecs_doc_set_brief(world, EcsDocLink, "Used as (Description, Link) to add a link");
+}
+
 void FlecsDocImport(
     ecs_world_t *world)
 {    
@@ -25800,10 +25786,8 @@ void FlecsDocImport(
     ecs_add_id(world, ecs_id(EcsDocDescription), EcsDontInherit);
     ecs_add_id(world, ecs_id(EcsDocDescription), EcsPrivate);
 
-    ecs_doc_set_brief(world, EcsDocBrief, "Brief description");
-    ecs_doc_set_brief(world, EcsDocDetail, "Detailed description");
-    ecs_doc_set_brief(world, EcsDocLink, "Link to additional documentation");
-    ecs_doc_set_brief(world, EcsDocColor, "Color hint for entity");   
+    flecs_doc_import_core_definitions(world);
+    flecs_doc_import_doc_definitions(world);
 }
 
 #endif
@@ -30828,6 +30812,8 @@ void UpdateWorldSummary(ecs_iter_t *it) {
         summary[i].merge_time_total = (double)info->merge_time_total;
 
         summary[i].frame_count ++;
+
+        summary[i].build_info = *ecs_get_build_info();
     }
 }
 
@@ -31091,7 +31077,7 @@ void FlecsMonitorImport(
 #ifdef FLECS_UNITS
     ECS_IMPORT(world, FlecsUnits);
 #endif
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsMonitor), 
         "Module that automatically monitors statistics for the world & systems");
@@ -31107,7 +31093,8 @@ void FlecsMonitorImport(
 
     ECS_COMPONENT_DEFINE(world, EcsWorldSummary);
 
-#if defined(FLECS_META) && defined(FLECS_UNITS)
+#if defined(FLECS_META) && defined(FLECS_UNITS) 
+    ecs_entity_t build_info = ecs_lookup(world, "flecs.core.build_info_t");
     ecs_struct(world, {
         .entity = ecs_id(EcsWorldSummary),
         .members = {
@@ -31118,7 +31105,8 @@ void FlecsMonitorImport(
             { .name = "frame_time_last", .type = ecs_id(ecs_f64_t), .unit = EcsSeconds  },
             { .name = "system_time_last", .type = ecs_id(ecs_f64_t), .unit = EcsSeconds  },
             { .name = "merge_time_last", .type = ecs_id(ecs_f64_t), .unit = EcsSeconds  },
-            { .name = "frame_count", .type = ecs_id(ecs_u64_t)  }
+            { .name = "frame_count", .type = ecs_id(ecs_u64_t) },
+            { .name = "build_info", .type = build_info }
         }
     });
 #endif
@@ -34567,7 +34555,7 @@ void FlecsScriptImport(
 {
     ECS_MODULE(world, FlecsScript);
     ECS_IMPORT(world, FlecsMeta);
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsScript), 
         "Module with components for managing Flecs scripts");
@@ -35671,7 +35659,7 @@ void FlecsRestImport(
 #ifdef FLECS_PLECS
     ECS_IMPORT(world, FlecsScript);
 #endif
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsRest), 
         "Module that implements Flecs REST API");
@@ -37433,7 +37421,7 @@ void FlecsTimerImport(
 {    
     ECS_MODULE(world, FlecsTimer);
     ECS_IMPORT(world, FlecsPipeline);
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsTimer), 
         "Module that implements system timers (used by .interval)");
@@ -37506,7 +37494,7 @@ void FlecsUnitsImport(
 {
     ECS_MODULE(world, FlecsUnits);
 
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsUnits), 
         "Module with (amongst others) SI units for annotating component members");
@@ -55105,8 +55093,13 @@ int flecs_json_serialize_iter_result_table_rows(
         flecs_json_object_push(buf);
 
         if (has_this) {
+            const EcsIdentifier *name_ptr = NULL;
+            if (names) {
+                /* Correct for offset applied by iterator */
+                name_ptr = &names[-it->offset];
+            }
             flecs_json_serialize_iter_this_row(
-                it, parent_path, &names[-it->offset], i, buf);
+                it, parent_path, name_ptr, i, buf);
         }
 
         if (tags_pairs_vars) {
@@ -55829,6 +55822,9 @@ bool flecs_unit_validate(
     ecs_world_t *world,
     ecs_entity_t t,
     EcsUnit *data);
+
+void flecs_meta_import_definitions(
+    ecs_world_t *world);
 
 #endif
     
@@ -58347,6 +58343,281 @@ double ecs_meta_ptr_to_float(
 
 #endif
 
+
+/**
+ * @file meta/definitions.c
+ * @brief Reflection definitions for builtin types.
+ */
+
+
+#ifdef FLECS_META
+
+/* Opaque type serializatior addon vector */
+static
+int flecs_addon_vec_serialize(const ecs_serializer_t *ser, const void *ptr) {
+    char ***data = ECS_CONST_CAST(char***, ptr);
+    char **addons = data[0];
+    do {
+        ser->value(ser, ecs_id(ecs_string_t), addons);
+    } while((++ addons)[0]);
+    return 0;
+}
+
+static
+size_t flecs_addon_vec_count(const void *ptr) {
+    int32_t count = 0;
+    char ***data = ECS_CONST_CAST(char***, ptr);
+    char **addons = data[0];
+    do {
+        ++ count;
+    } while(addons[count]);
+    return flecs_ito(size_t, count);
+}
+
+/* Initialize reflection data for core components */
+static
+void flecs_meta_import_core_definitions(
+    ecs_world_t *world)
+{
+    ecs_struct(world, {
+        .entity = ecs_id(EcsComponent),
+        .members = {
+            { .name = "size", .type = ecs_id(ecs_i32_t) },
+            { .name = "alignment", .type = ecs_id(ecs_i32_t) }
+        }
+    });
+
+    ecs_entity_t string_vec = ecs_vector(world, {
+        .entity = ecs_entity(world, { .name = "flecs.core.string_vec_t "}),
+        .type = ecs_id(ecs_string_t)
+    });
+
+    ecs_entity_t addon_vec = ecs_opaque(world, {
+        .entity = ecs_component(world, { 
+            .type = {
+                .name = "flecs.core.addon_vec_t",
+                .size = ECS_SIZEOF(char**),
+                .alignment = ECS_ALIGNOF(char**)
+            }
+        }),
+        .type = {
+            .as_type = string_vec,
+            .serialize = flecs_addon_vec_serialize,
+            .count = flecs_addon_vec_count,
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_entity(world, { 
+            .name = "flecs.core.build_info_t",
+            .root_sep = ""
+        }),
+        .members = {
+            { .name = "compiler", .type = ecs_id(ecs_string_t) },
+            { .name = "addons", .type = addon_vec },
+            { .name = "version", .type = ecs_id(ecs_string_t) },
+            { .name = "version_major", .type = ecs_id(ecs_i16_t) },
+            { .name = "version_minor", .type = ecs_id(ecs_i16_t) },
+            { .name = "version_patch", .type = ecs_id(ecs_i16_t) },
+            { .name = "debug", .type = ecs_id(ecs_bool_t) },
+            { .name = "sanitize", .type = ecs_id(ecs_bool_t) },
+        }
+    });
+}
+
+/* Initialize reflection data for doc components */
+static
+void flecs_meta_import_doc_definitions(
+    ecs_world_t *world)
+{
+    (void)world;
+#ifdef FLECS_DOC
+    ecs_struct(world, {
+        .entity = ecs_id(EcsDocDescription),
+        .members = {
+            { .name = "value", .type = ecs_id(ecs_string_t) }
+        }
+    });
+#endif
+}
+
+/* Initialize reflection data for meta components */
+static
+void flecs_meta_import_meta_definitions(
+    ecs_world_t *world)
+{
+    ecs_entity_t type_kind = ecs_enum_init(world, &(ecs_enum_desc_t){
+        .entity = ecs_entity(world, { .name = "TypeKind" }),
+        .constants = {
+            { .name = "PrimitiveType" },
+            { .name = "BitmaskType" },
+            { .name = "EnumType" },
+            { .name = "StructType" },
+            { .name = "ArrayType" },
+            { .name = "VectorType" },
+            { .name = "OpaqueType" }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsMetaType),
+        .members = {
+            { .name = "kind", .type = type_kind }
+        }
+    });
+
+    ecs_entity_t primitive_kind = ecs_enum_init(world, &(ecs_enum_desc_t){
+        .entity = ecs_entity(world, { .name = "PrimitiveKind" }),
+        .constants = {
+            { .name = "Bool", 1 }, 
+            { .name = "Char" }, 
+            { .name = "Byte" }, 
+            { .name = "U8" }, 
+            { .name = "U16" }, 
+            { .name = "U32" }, 
+            { .name = "U64 "},
+            { .name = "I8" }, 
+            { .name = "I16" }, 
+            { .name = "I32" }, 
+            { .name = "I64" }, 
+            { .name = "F32" }, 
+            { .name = "F64" }, 
+            { .name = "UPtr "},
+            { .name = "IPtr" }, 
+            { .name = "String" }, 
+            { .name = "Entity" },
+            { .name = "Id" }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsPrimitive),
+        .members = {
+            { .name = "kind", .type = primitive_kind }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsMember),
+        .members = {
+            { .name = "type", .type = ecs_id(ecs_entity_t) },
+            { .name = "count", .type = ecs_id(ecs_i32_t) },
+            { .name = "unit", .type = ecs_id(ecs_entity_t) },
+            { .name = "offset", .type = ecs_id(ecs_i32_t) }
+        }
+    });
+
+    ecs_entity_t vr = ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_entity(world, { .name = "value_range" }),
+        .members = {
+            { .name = "min", .type = ecs_id(ecs_f64_t) },
+            { .name = "max", .type = ecs_id(ecs_f64_t) }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsMemberRanges),
+        .members = {
+            { .name = "value", .type = vr },
+            { .name = "warning", .type = vr },
+            { .name = "error", .type = vr }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsArray),
+        .members = {
+            { .name = "type", .type = ecs_id(ecs_entity_t) },
+            { .name = "count", .type = ecs_id(ecs_i32_t) },
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsVector),
+        .members = {
+            { .name = "type", .type = ecs_id(ecs_entity_t) }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsOpaque),
+        .members = {
+            { .name = "as_type", .type = ecs_id(ecs_entity_t) }
+        }
+    });
+
+    ecs_entity_t ut = ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_entity(world, { .name = "unit_translation" }),
+        .members = {
+            { .name = "factor", .type = ecs_id(ecs_i32_t) },
+            { .name = "power", .type = ecs_id(ecs_i32_t) }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsUnit),
+        .members = {
+            { .name = "symbol", .type = ecs_id(ecs_string_t) },
+            { .name = "prefix", .type = ecs_id(ecs_entity_t) },
+            { .name = "base", .type = ecs_id(ecs_entity_t) },
+            { .name = "over", .type = ecs_id(ecs_entity_t) },
+            { .name = "translation", .type = ut }
+        }
+    });
+
+    ecs_struct_init(world, &(ecs_struct_desc_t){
+        .entity = ecs_id(EcsUnitPrefix),
+        .members = {
+            { .name = "symbol", .type = ecs_id(ecs_string_t) },
+            { .name = "translation", .type = ut }
+        }
+    });
+
+    /* Meta doc definitions */
+#ifdef FLECS_DOC
+    ecs_entity_t meta = ecs_lookup(world, "flecs.meta");
+    ecs_doc_set_brief(world, meta, "Flecs module with reflection components");
+
+    ecs_doc_set_brief(world, ecs_id(EcsMetaType), "Component added to types");
+    ecs_doc_set_brief(world, ecs_id(EcsMetaTypeSerialized), "Component that stores reflection data in an optimized format");
+    ecs_doc_set_brief(world, ecs_id(EcsPrimitive), "Component added to primitive types");
+    ecs_doc_set_brief(world, ecs_id(EcsEnum), "Component added to enumeration types");
+    ecs_doc_set_brief(world, ecs_id(EcsBitmask), "Component added to bitmask types");
+    ecs_doc_set_brief(world, ecs_id(EcsMember), "Component added to struct members");
+    ecs_doc_set_brief(world, ecs_id(EcsStruct), "Component added to struct types");
+    ecs_doc_set_brief(world, ecs_id(EcsArray), "Component added to array types");
+    ecs_doc_set_brief(world, ecs_id(EcsVector), "Component added to vector types");
+
+    ecs_doc_set_brief(world, ecs_id(ecs_bool_t), "bool component");
+    ecs_doc_set_brief(world, ecs_id(ecs_char_t), "char component");
+    ecs_doc_set_brief(world, ecs_id(ecs_byte_t), "byte component");
+    ecs_doc_set_brief(world, ecs_id(ecs_u8_t), "8 bit unsigned int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_u16_t), "16 bit unsigned int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_u32_t), "32 bit unsigned int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_u64_t), "64 bit unsigned int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_uptr_t), "word sized unsigned int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_i8_t), "8 bit signed int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_i16_t), "16 bit signed int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_i32_t), "32 bit signed int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_i64_t), "64 bit signed int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_iptr_t), "word sized signed int component");
+    ecs_doc_set_brief(world, ecs_id(ecs_f32_t), "32 bit floating point component");
+    ecs_doc_set_brief(world, ecs_id(ecs_f64_t), "64 bit floating point component");
+    ecs_doc_set_brief(world, ecs_id(ecs_string_t), "string component");
+    ecs_doc_set_brief(world, ecs_id(ecs_entity_t), "entity component");
+#endif
+}
+
+void flecs_meta_import_definitions(
+    ecs_world_t *world)
+{
+    flecs_meta_import_core_definitions(world);
+    flecs_meta_import_doc_definitions(world);
+    flecs_meta_import_meta_definitions(world);
+}
+
+#endif
+
 /**
  * @file meta/meta.c
  * @brief Meta addon.
@@ -59487,6 +59758,9 @@ void FlecsMetaImport(
     ecs_world_t *world)
 {
     ECS_MODULE(world, FlecsMeta);
+#ifdef FLECS_DOC
+    ECS_IMPORT(world, FlecsDoc);
+#endif
 
     ecs_set_name_prefix(world, "Ecs");
 
@@ -59706,133 +59980,8 @@ void FlecsMetaImport(
     ecs_add_id(world, EcsQuantity, EcsExclusive);
     ecs_add_id(world, EcsQuantity, EcsTag);
 
-    /* Initialize reflection data for meta components */
-    ecs_entity_t type_kind = ecs_enum_init(world, &(ecs_enum_desc_t){
-        .entity = ecs_entity(world, { .name = "TypeKind" }),
-        .constants = {
-            { .name = "PrimitiveType" },
-            { .name = "BitmaskType" },
-            { .name = "EnumType" },
-            { .name = "StructType" },
-            { .name = "ArrayType" },
-            { .name = "VectorType" },
-            { .name = "OpaqueType" }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsMetaType),
-        .members = {
-            { .name = "kind", .type = type_kind }
-        }
-    });
-
-    ecs_entity_t primitive_kind = ecs_enum_init(world, &(ecs_enum_desc_t){
-        .entity = ecs_entity(world, { .name = "PrimitiveKind" }),
-        .constants = {
-            { .name = "Bool", 1 }, 
-            { .name = "Char" }, 
-            { .name = "Byte" }, 
-            { .name = "U8" }, 
-            { .name = "U16" }, 
-            { .name = "U32" }, 
-            { .name = "U64 "},
-            { .name = "I8" }, 
-            { .name = "I16" }, 
-            { .name = "I32" }, 
-            { .name = "I64" }, 
-            { .name = "F32" }, 
-            { .name = "F64" }, 
-            { .name = "UPtr "},
-            { .name = "IPtr" }, 
-            { .name = "String" }, 
-            { .name = "Entity" },
-            { .name = "Id" }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsPrimitive),
-        .members = {
-            { .name = "kind", .type = primitive_kind }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsMember),
-        .members = {
-            { .name = "type", .type = ecs_id(ecs_entity_t) },
-            { .name = "count", .type = ecs_id(ecs_i32_t) },
-            { .name = "unit", .type = ecs_id(ecs_entity_t) },
-            { .name = "offset", .type = ecs_id(ecs_i32_t) }
-        }
-    });
-
-    ecs_entity_t vr = ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_entity(world, { .name = "value_range" }),
-        .members = {
-            { .name = "min", .type = ecs_id(ecs_f64_t) },
-            { .name = "max", .type = ecs_id(ecs_f64_t) }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsMemberRanges),
-        .members = {
-            { .name = "value", .type = vr },
-            { .name = "warning", .type = vr },
-            { .name = "error", .type = vr }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsArray),
-        .members = {
-            { .name = "type", .type = ecs_id(ecs_entity_t) },
-            { .name = "count", .type = ecs_id(ecs_i32_t) },
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsVector),
-        .members = {
-            { .name = "type", .type = ecs_id(ecs_entity_t) }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsOpaque),
-        .members = {
-            { .name = "as_type", .type = ecs_id(ecs_entity_t) }
-        }
-    });
-
-    ecs_entity_t ut = ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_entity(world, { .name = "unit_translation" }),
-        .members = {
-            { .name = "factor", .type = ecs_id(ecs_i32_t) },
-            { .name = "power", .type = ecs_id(ecs_i32_t) }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsUnit),
-        .members = {
-            { .name = "symbol", .type = ecs_id(ecs_string_t) },
-            { .name = "prefix", .type = ecs_id(ecs_entity_t) },
-            { .name = "base", .type = ecs_id(ecs_entity_t) },
-            { .name = "over", .type = ecs_id(ecs_entity_t) },
-            { .name = "translation", .type = ut }
-        }
-    });
-
-    ecs_struct_init(world, &(ecs_struct_desc_t){
-        .entity = ecs_id(EcsUnitPrefix),
-        .members = {
-            { .name = "symbol", .type = ecs_id(ecs_string_t) },
-            { .name = "translation", .type = ut }
-        }
-    });
+    /* Import reflection definitions for builtin types */
+    flecs_meta_import_definitions(world);
 }
 
 #endif
@@ -61645,7 +61794,7 @@ void FlecsPipelineImport(
 {
     ECS_MODULE(world, FlecsPipeline);
     ECS_IMPORT(world, FlecsSystem);
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsPipeline), 
         "Module that schedules and runs systems");
@@ -69114,7 +69263,7 @@ void FlecsSystemImport(
     ecs_world_t *world)
 {
     ECS_MODULE(world, FlecsSystem);
-#ifdef FLECS_COREDOC
+#ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
     ecs_doc_set_brief(world, ecs_id(FlecsSystem), 
         "Module that implements Flecs systems");
