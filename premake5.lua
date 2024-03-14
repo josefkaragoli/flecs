@@ -13,4 +13,6 @@ project "flecs"
 	}
 	
 	includedirs{ "include" }
+	
+	links { "Ws2_32" }
 
