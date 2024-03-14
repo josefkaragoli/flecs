@@ -1,7 +1,7 @@
 project "flecs"
 	kind "StaticLib"
 	language "C"
-	cdialect "C99"
+	cdialect "gnu99"
 	staticruntime "off"
 	warnings "off"
 	
