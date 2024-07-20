@@ -114,19 +114,13 @@ Addon         | Description                                      | Define       
 [Pipeline](/flecs/group__c__addons__pipeline.html)         | Automatically schedule & multithread systems     | FLECS_PIPELINE      |
 [Timer](/flecs/group__c__addons__timer.html)               | Run systems at time intervals or at a rate       | FLECS_TIMER         |
 [Meta](/flecs/group__c__addons__meta.html)                 | Flecs reflection system                          | FLECS_META          |
-[Meta_C](/flecs/group__c__addons__meta__c.html)            | (C) Utilities for auto-inserting reflection data | FLECS_META_C        |
 [Units](/flecs/group__c__addons__units.html)               | Builtin unit types                               | FLECS_UNITS         |
-[Expr](/flecs/group__c__addons__expr.html)                 | String format optimized for ECS data             | FLECS_EXPR          |
 [JSON](/flecs/group__c__addons__json.html)                 | JSON format                                      | FLECS_JSON          |
 [Doc](/flecs/group__c__addons__doc.html)                   | Add documentation to components, systems & more  | FLECS_DOC           |
 [Http](/flecs/group__c__addons__http.html)                 | Tiny HTTP server for processing simple requests  | FLECS_HTTP          |
 [Rest](/flecs/group__c__addons__rest.html)                 | REST API for showing entities in the browser     | FLECS_REST          |
-[Parser](/flecs/group__c__addons__parser.html)             | Create entities & queries from strings           | FLECS_PARSER        |
-[Plecs](/flecs/group__c__addons__plecs.html)               | Small utility language for asset/scene loading   | FLECS_PLECS         |
-[Rules](/flecs/group__c__addons__rules.html)               | Powerful prolog-like query language              | FLECS_RULES         |
-[Snapshot](/flecs/group__c__addons__snapshot.html)         | Take snapshots of the world & restore them       | FLECS_SNAPSHOT      |
+[Script](/flecs/group__c__addons__script.html)             | DSL for assets, scenes and configuration         | FLECS_SCRIPT        |
 [Stats](/flecs/group__c__addons__stats.html)               | Functions for collecting statistics              | FLECS_STATS         |
-[Monitor](/flecs/group__c__addons__monitor.html)           | Periodically collect & store flecs statistics    | FLECS_MONITOR       |
 [Metrics](/flecs/group__c__addons__metrics.html)           | Create metrics from user-defined components      | FLECS_METRICS       |
 [Alerts](/flecs/group__c__addons__alerts.html)             | Create alerts from user-defined queries          | FLECS_ALERTS        |
 [Log](/flecs/group__c__addons__log.html)                   | Extended tracing and error logging               | FLECS_LOG           |
@@ -141,6 +135,7 @@ This section contains an overview of all the different concepts in Flecs and how
 
 ### World
 The world is the container for all ECS data. It stores the entities and their components, does queries and runs systems. Typically there is only a single world, but there is no limit on the number of worlds an application can create.
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -169,6 +164,14 @@ using World world = World.Create();
 // Do the ECS stuff
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let world = World::new();
+
+// Do the ECS stuff
+```
+</li>
 </ul>
 </div>
 
@@ -179,7 +182,7 @@ An entity is a unique thing in the world, and is represented by a 64 bit id. Ent
 <li><b class="tab-title">C</b>
 
 ```c
-ecs_entity_t e = ecs_new_id(world);
+ecs_entity_t e = ecs_new(world);
 ecs_is_alive(world, e); // true!
 
 ecs_delete(world, e);
@@ -204,6 +207,16 @@ e.IsAlive(); // true!
 
 e.Destruct();
 e.IsAlive(); // false!
+```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let e = world.entity();
+e.is_alive(); // true!
+
+e.destruct();
+e.is_alive(); // false!
 ```
 </li>
 </ul>
@@ -237,6 +250,14 @@ Entity e = world.Entity("Bob");
 Console.WriteLine($"Entity name: {e.Name()}");
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let e = world.entity_named("bob");
+
+println!("Entity name: {}", e.name());
+```
+</li>
 </ul>
 </div>
 
@@ -261,6 +282,12 @@ auto e = world.lookup("Bob");
 Entity e = world.Lookup("Bob");
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let e = world.lookup("bob");
+```
+</li>
 </ul>
 </div>
 
@@ -279,7 +306,7 @@ A component is a type of which instances can be added and removed to entities. E
 ECS_COMPONENT(world, Position);
 ECS_COMPONENT(world, Velocity);
 
-ecs_entity_t e = ecs_new_id(world);
+ecs_entity_t e = ecs_new(world);
 
 // Add a component. This creates the component in the ECS storage, but does not
 // assign it with a value.
@@ -339,6 +366,29 @@ ref readonly Position p = ref e.Get<Position>();
 e.Remove<Position>();
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let e = world.entity();
+
+// Add a component. This creates the component in the ECS storage, but does not
+// assign it with a value.
+e.add::<Velocity>();
+
+// Set the value for the Position & Velocity components. A component will be
+// added if the entity doesn't have it yet.
+e.set(Position { x: 10.0, y: 20.0 })
+ .set(Velocity { x: 1.0, y: 2.0 });
+
+// Get a component
+e.get::<&Position>(|p| {
+    println!("Position: ({}, {})", p.x, p.y);
+});
+
+// Remove component
+e.remove::<Position>();
+```
+</li>
 </ul>
 </div>
 
@@ -380,6 +430,18 @@ Console.WriteLine($"Name: {posE.Name()}"); // outputs 'Name: Position'
 posE.Add<Serializable>();
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+Rust applications can use the `world::entity_from` function.
+```rust
+let pos_e = world.entity_from::<Position>();
+
+println!("Name: {}", pos_e.name()); // outputs 'Name: Position'
+
+// It's possible to add components like you would for any entity
+pos_e.add::<Serializable>();
+```
+</li>
 </ul>
 </div>
 
@@ -415,6 +477,16 @@ ref readonly EcsComponent c = ref posE.Get<EcsComponent>();
 Console.WriteLine($"Component size: {c.size}");
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let pos_e = world.entity_from::<Position>();
+
+pos_e.get::<&flecs::Component>(|c| {
+    println!("Component size: {}", c.size);
+});
+```
+</li>
 </ul>
 </div>
 
@@ -428,10 +500,10 @@ A tag is a component that does not have any data. In Flecs tags can be either em
 
 ```c
 // Create Enemy tag
-ecs_entity_t Enemy = ecs_new_id(world);
+ecs_entity_t Enemy = ecs_new(world);
 
 // Create entity, add Enemy tag
-ecs_entity_t e = ecs_new_id(world);
+ecs_entity_t e = ecs_new(world);
 
 ecs_add_id(world, e, Enemy);
 ecs_has_id(world, e, Enemy); // true!
@@ -490,6 +562,31 @@ e.Remove(Enemy);
 e.Has(Enemy); // false!
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+// Option 1: create Tag as empty struct
+#[derive(Component)]
+struct Enemy;
+
+// Create entity, add Enemy tag
+let e = world.entity().add::<Enemy>();
+e.has::<Enemy>(); // true!
+
+e.remove::<Enemy>();
+e.has::<Enemy>(); // false!
+
+// Option 2: create Tag as entity
+let enemy = world.entity();
+
+// Create entity, add Enemy tag
+let e = world.entity().add_id(enemy);
+e.has_id(enemy); // true!
+
+e.remove_id(enemy);
+e.has_id(enemy); // false!
+```
+</li>
 </ul>
 </div>
 
@@ -505,11 +602,11 @@ A pair is a combination of two entity ids. Pairs can be used to store entity rel
 
 ```c
 // Create Likes relationship
-ecs_entity_t Likes = ecs_new_id(world);
+ecs_entity_t Likes = ecs_new(world);
 
 // Create a small graph with two entities that like each other
-ecs_entity_t Bob = ecs_new_id(world);
-ecs_entity_t Alice = ecs_new_id(world);
+ecs_entity_t Bob = ecs_new(world);
+ecs_entity_t Alice = ecs_new(world);
 
 ecs_add_pair(world, Bob, Likes, Alice); // Bob likes Alice
 ecs_add_pair(world, Alice, Likes, Bob); // Alice likes Bob
@@ -555,6 +652,25 @@ Bob.Remove<Likes>(Alice);
 Bob.Has<Likes>(Alice); // false!
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+// Create Likes relationship as empty type (tag)
+#[derive(Component)]
+struct Likes;
+
+// Create a small graph with two entities that like each other
+let bob = world.entity();
+let alice = world.entity();
+
+bob.add_first::<Likes>(alice); // bob likes alice
+alice.add_first::<Likes>(bob); // alice likes bob
+bob.has_first::<Likes>(alice); // true!
+
+bob.remove_first::<Likes>(alice);
+bob.has_first::<Likes>(alice); // false!
+```
+</li>
 </ul>
 </div>
 
@@ -577,6 +693,12 @@ flecs::id id = world.pair<Likes>(Bob);
 
 ```cs
 Id id = world.Pair<Likes>(bob);
+```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let id = world.id_first::<Likes>(bob);
 ```
 </li>
 </ul>
@@ -612,6 +734,16 @@ if (id.IsPair())
 {
     Entity relationship = id.First();
     Entity target = id.Second();
+}
+```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let id = world.id_from::<(Likes, Apples)>();
+if id.is_pair() {
+    let relationship = id.first_id();
+    let target = id.second_id();
 }
 ```
 </li>
@@ -659,6 +791,19 @@ Bob.Has(Eats, Pears);  // true!
 Bob.Has(Grows, Pears); // true!
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let bob = world.entity();
+bob.add_id((eats, apples));
+bob.add_id((eats, pears));
+bob.add_id((grows, pears));
+
+bob.has_id((eats, apples)); // true!
+bob.has_id((eats, pears)); // true!
+bob.has_id((grows, pears)); // true!
+```
+</li>
 </ul>
 </div>
 
@@ -685,6 +830,13 @@ Entity Alice = ...;
 Entity o = Alice.Target<Likes>(); // Returns Bob
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let alice = world.entity().add_first::<Likes>(bob);
+let o = alice.target::<Likes>(0); // Returns bob
+```
+</li>
 </ul>
 </div>
 
@@ -697,7 +849,7 @@ Flecs has builtin support for hierarchies with the builtin `EcsChildOf` (or `fle
 <li><b class="tab-title">C</b>
 
 ```c
-ecs_entity_t parent = ecs_new_id(world);
+ecs_entity_t parent = ecs_new(world);
 
 // ecs_new_w_pair is the same as ecs_new_id + ecs_add_pair
 ecs_entity_t child = ecs_new_w_pair(world, EcsChildOf, parent);
@@ -726,6 +878,16 @@ Entity child = world.Entity().ChildOf(parent);
 parent.Destruct();
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let parent = world.entity();
+let child = world.entity().child_of_id(parent);
+
+// Deleting the parent also deletes its children
+parent.destruct();
+```
+</li>
 </ul>
 </div>
 
@@ -745,12 +907,12 @@ ecs_entity_t child = ecs_entity(world, {
 
 ecs_add_pair(world, child, EcsChildOf, parent);
 
-char *path = ecs_get_fullpath(world, child);
+char *path = ecs_get_path(world, child);
 printf("%s\n", path); // output: 'parent.child'
 ecs_os_free(path);
 
-ecs_lookup_path(world, 0, "parent.child"); // returns child
-ecs_lookup_path(world, parent, "child");   // returns child
+ecs_lookup(world, "parent.child");         // returns child
+ecs_lookup_from(world, parent, "child");   // returns child
 ```
 </li>
 <li><b class="tab-title">C++</b>
@@ -775,6 +937,18 @@ world.Lookup("parent.child"); // returns child
 parent.Lookup("child"); // returns child
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let parent = world.entity_named("parent");
+let child = world.entity_named("child").child_of_id(parent);
+
+println!("Child path: {}", child.path().unwrap()); // output: 'parent::child'
+
+world.lookup("parent::child"); // returns child
+parent.lookup("child"); // returns child
+```
+</li>
 </ul>
 </div>
 
@@ -784,8 +958,8 @@ Queries (see below) can use hierarchies to order data breadth-first, which can c
 <li><b class="tab-title">C</b>
 
 ```c
-ecs_query_t *q = ecs_query_init(world, &(ecs_query_desc_t){
-    .filter.terms = {
+ecs_query_t *q = ecs_query(world, {
+    .terms = {
         { ecs_id(Position) },
         { ecs_id(Position), .src = {
             .flags = EcsCascade,       // Breadth-first order
@@ -796,8 +970,8 @@ ecs_query_t *q = ecs_query_init(world, &(ecs_query_desc_t){
 
 ecs_iter_t it = ecs_query_iter(world, q);
 while (ecs_query_next(&it)) {
-    Position *p = ecs_field(&it, Position, 1);
-    Position *p_parent = ecs_field(&it, Position, 2);
+    Position *p = ecs_field(&it, Position, 0);
+    Position *p_parent = ecs_field(&it, Position, 1);
     for (int i = 0; i < it.count; i++) {
         // Do the thing
     }
@@ -808,7 +982,7 @@ while (ecs_query_next(&it)) {
 
 ```cpp
 auto q = world.query_builder<Position, Position>()
-    .term_at(2).parent().cascade()
+    .term_at(1).parent().cascade()
     .build();
 
 q.each([](Position& p, Position& p_parent) {
@@ -820,7 +994,7 @@ q.each([](Position& p, Position& p_parent) {
 
 ```cs
 Query q = world.QueryBuilder<Position, Position>()
-    .TermAt(2).Parent().Cascade()
+    .TermAt(1).Parent().Cascade()
     .Build();
 
 q.Each((ref Position p, ref Position pParent) =>
@@ -829,78 +1003,27 @@ q.Each((ref Position p, ref Position pParent) =>
 });
 ```
 </li>
-</ul>
-</div>
+<li><b class="tab-title">Rust</b>
 
-### Instancing
-Flecs has builtin support for instancing (sharing a single component with multiple entities) through the builtin `EcsIsA` relationship (`flecs::IsA` in C++). An entity with an `IsA` relationship to a base entity "inherits" all entities from that base:
-<div class="flecs-snippet-tabs">
-<ul>
-<li><b class="tab-title">C</b>
+```rust
+let q = world
+    .query::<(&Position, &mut Position)>()
+    .term_at(1)
+    .parent()
+    .cascade()
+    .build();
 
-```c
-// Shortcut to create entity & set a component
-ecs_entity_t base = ecs_set(world, 0, Triangle, {{0, 0}, {1, 1}, {-1, -1}});
-
-// Create entity that shares components with base
-ecs_entity_t e = ecs_new_w_pair(world, EcsIsA, base);
-const Triangle *t = ecs_get(world, e, Triangle); // gets Triangle from base
-```
-</li>
-<li><b class="tab-title">C++</b>
-
-```cpp
-auto base = world.entity().set<Triangle>({{0, 0}, {1, 1}, {-1, -1}});
-
-// Create entity that shares components with base
-auto e = world.entity().is_a(base);
-const Triangle *t = e.get<Triangle>(); // gets Triangle from base
-```
-</li>
-<li><b class="tab-title">C#</b>
-
-```cs
-Entity base = world.Entity().Set<Triangle>(new Triangle(new(0, 0), new(1, 1), new(-1, -1)));
-
-// Create entity that shares components with base
-Entity e = world.Entity().IsA(base);
-ref readonly Triangle t = ref e.Get<Triangle>(); // gets Triangle from base
+q.each(|(p, p_parent)| {
+    // Do the thing
+});
 ```
 </li>
 </ul>
 </div>
-
-Entities can override components from their base:
-<div class="flecs-snippet-tabs">
-<ul>
-<li><b class="tab-title">C</b>
-
-```c
-// Add private instance of Triangle to e, copy value from base
-ecs_add(world, e, Triangle);
-```
-</li>
-<li><b class="tab-title">C++</b>
-
-```cpp
-// Add private instance of Triangle to e, copy value from base
-e.add<Triangle>();
-```
-</li>
-<li><b class="tab-title">C#</b>
-
-```cs
-// Add private instance of Triangle to e, copy value from base
-e.Add<Triangle>();
-```
-</li>
-</ul>
-</div>
-
-Instancing can be used to build modular prefab hierarchies, as the foundation of a batched renderer with instancing support, or just to reduce memory footprint by sharing common data across entities.
 
 ### Type
 The type (often referred to as "archetype") is the list of ids an entity has. Types can be used for introspection which is useful when debugging, or when for example building an entity editor. The most common thing to do with a type is to convert it to text and print it:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -909,7 +1032,7 @@ The type (often referred to as "archetype") is the list of ids an entity has. Ty
 ECS_COMPONENT(world, Position);
 ECS_COMPONENT(world, Velocity);
 
-ecs_entity_t e = ecs_new_id(world);
+ecs_entity_t e = ecs_new(world);
 ecs_add(world, e, Position);
 ecs_add(world, e, Velocity);
 
@@ -937,6 +1060,14 @@ Entity e = ecs.Entity()
     .Add<Velocity>();
 
 Console.WriteLine(e.Type().Str()); // output: 'Position,Velocity'
+```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let e = world.entity().add::<Position>().add::<Velocity>();
+
+println!("Components: {}", e.archetype().to_string().unwrap()); // output: 'Position,Velocity'
 ```
 </li>
 </ul>
@@ -978,11 +1109,22 @@ e.Each((Id id) =>
 });
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+e.each_component(|id| {
+    if id == world.component_id::<Position>() {
+        // Found Position component!
+    }
+});
+```
+</li>
 </ul>
 </div>
 
 ### Singleton
 A singleton is a single instance of a component that can be retrieved without an entity. The functions for singletons are very similar to the regular API:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1015,10 +1157,23 @@ world.Set<Gravity>(new(9.81));
 ref readonly Gravity g = ref world.Get<Gravity>();
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+// Set singleton component
+world.set(Gravity { x: 10, y: 20 });
+
+// Get singleton component
+world.get::<&Gravity>(|g| {
+    println!("Gravity: {}, {}", g.x, g.y);
+});
+```
+</li>
 </ul>
 </div>
 
 Singleton components are created by adding the component to its own entity id. The above code examples are shortcuts for these regular API calls:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1049,6 +1204,18 @@ gravE.Set<Gravity>(new(10, 20));
 ref readonly Gravity g = ref gravE.Get<Gravity>();
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let grav_e = world.entity_from::<Gravity>();
+
+grav_e.set(Gravity { x: 10, y: 20 });
+
+grav_e.get::<&Gravity>(|g| {
+    println!("Gravity: {}, {}", g.x, g.y);
+});
+```
+</li>
 </ul>
 </div>
 
@@ -1060,7 +1227,7 @@ The following examples show how to query for a singleton component:
 ```c
 // Create query that matches Gravity as singleton
 ecs_query_t *q = ecs_query(ecs, {
-    .filter.terms = {
+    .terms = {
         // Regular component
         { .id = ecs_id(Velocity) },
         // A singleton is a component matched on itself
@@ -1076,7 +1243,7 @@ ECS_SYSTEM(world, ApplyGravity, EcsOnUpdate, Velocity, Gravity($));
 
 ```cpp
 world.query_builder<Velocity, Gravity>()
-    .term_at(2).singleton()
+    .term_at(1).singleton()
     .build();
 ```
 </li>
@@ -1084,35 +1251,44 @@ world.query_builder<Velocity, Gravity>()
 
 ```cs
 world.QueryBuilder<Velocity, Gravity>()
-    .TermAt(2).Singleton()
+    .TermAt(1).Singleton()
     .Build();
+```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+world
+    .query::<(&Velocity, &Gravity)>()
+    .term_at(1)
+    .singleton()
+    .build();
 ```
 </li>
 </ul>
 </div>
 
-### Filter
-Filters are a kind of uncached query that are cheap to create. This makes them a good fit for scenarios where an application doesn't know in advance what it has to query for, like when finding the children for a parent. The following example shows a simple filter:
+### Query
+Queries are the main mechanism for finding and iterating through entities. Queries are used in many parts of the API, such as for systems and observers. The following example shows a simple query:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
-
 ```c
-// Initialize a filter with 2 terms on the stack
-ecs_filter_t *f = ecs_filter_init(world, &(ecs_filter_desc_t){
+ecs_query_t *q = ecs_query(world, {
     .terms = {
         { ecs_id(Position) },
         { ecs_pair(EcsChildOf, parent) }
     }
 });
 
-// Iterate the filter results. Because entities are grouped by their type there
+// Iterate the query results. Because entities are grouped by their type there
 // are two loops: an outer loop for the type, and an inner loop for the entities
 // for that type.
-ecs_iter_t it = ecs_filter_iter(world, f);
-while (ecs_filter_next(&it)) {
+ecs_iter_t it = ecs_query_iter(world, q);
+while (ecs_query_next(&it)) {
     // Each type has its own set of component arrays
-    Position *p = ecs_field(&it, Position, 1);
+    Position *p = ecs_field(&it, Position, 0);
 
     // Iterate all entities for the type
     for (int i = 0; i < it.count; i++) {
@@ -1121,33 +1297,37 @@ while (ecs_filter_next(&it)) {
     }
 }
 
-ecs_filter_fini(f);
+ecs_query_fini(f);
 ```
 </li>
 <li><b class="tab-title">C++</b>
 
 ```cpp
-// For simple queries the each function can be used
+// For simple queries the world::each function can be used
 world.each([](Position& p, Velocity& v) { // flecs::entity argument is optional
     p.x += v.x;
     p.y += v.y;
 });
 
-// More complex filters can first be created, then iterated
-auto f = world.filter_builder<Position>()
-    .term(flecs::ChildOf, parent)
+// More complex queries can first be created, then iterated
+auto q = world.query_builder<Position>()
+    .with(flecs::ChildOf, parent)
     .build();
 
-// Option 1: each() function that iterates each entity
-f.each([](flecs::entity e, Position& p) {
+// Option 1: the each() callback iterates over each entity
+q.each([](flecs::entity e, Position& p) {
     std::cout << e.name() << ": {" << p.x << ", " << p.y << "}" << std::endl;
 });
 
-// Option 2: iter() function that iterates each archetype
-f.iter([](flecs::iter& it, Position *p) {
-    for (auto i : it) {
-        std::cout << it.entity(i).name()
-            << ": {" << p[i].x << ", " << p[i].y << "}" << std::endl;
+// Option 2: the run() callback offers more control over the iteration
+q.run([](flecs::iter& it) {
+    while (it.next()) {
+        auto p = it.field<Position>(0);
+
+        for (auto i : it) {
+            std::cout << it.entity(i).name()
+                << ": {" << p[i].x << ", " << p[i].y << "}" << std::endl;
+        }
     }
 });
 ```
@@ -1163,36 +1343,70 @@ world.Each((ref Position p, ref Velocity v) => // Entity argument is optional
 });
 
 // More complex filters can first be created, then iterated
-using Filter f = world.FilterBuilder<Position>()
-    .Term(Ecs.ChildOf, parent)
+using Query q = world.QueryBuilder<Position>()
+    .With(Ecs.ChildOf, parent)
     .Build();
 
-// Option 1: Each() function that iterates each entity
-f.Each((Entity e, ref Position p) =>
+// Option 1: The Each() callback that iterates each entity
+q.Each((Entity e, ref Position p) =>
 {
     Console.WriteLine($"{e.Name()}: ({p.X}, {p.Y})")
 });
 
-// Option 2: Iter() function that iterates each archetype
-f.Iter((Iter it, Field<Position> p) =>
+// Option 2: The Iter() callback provides more control over the iteration
+q.Iter((Iter it, Field<Position> p) =>
 {
     foreach (int i in it)
         Console.WriteLine($"{it.Entity(i).Name()}: ({p[i].X}, {p[i].Y})")
 });
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+// For simple queries the world::each function can be used
+world.each::<(&mut Position, &Velocity)>(|(p, v)| {
+    // EntityView argument is optional, use each_entity to get it
+    p.x += v.x;
+    p.y += v.y;
+});
+
+// More complex queries can first be created, then iterated
+let q = world
+    .query::<&Position>()
+    .with_id((flecs::ChildOf::ID, parent))
+    .build();
+
+// Option 1: the each() callback iterates over each entity
+q.each_entity(|e, p| {
+    println!("{}: ({}, {})", e.name(), p.x, p.y);
+}); 
+
+// Option 2: the run() callback offers more control over the iteration
+q.run(|mut it| {
+    while it.next() {
+        let p = it.field::<Position>(0).unwrap();
+
+        for i in it.iter() {
+            println!("{}: ({}, {})", it.entity(i).name(), p[i].x, p[i].y);
+        }
+    }
+});
+```
+</li>
 </ul>
 </div>
 
-Filters can use operators to exclude components, optionally match components or match one out of a list of components. Additionally filters may contain wildcards for terms which is especially useful when combined with pairs.
+Queries can use operators to exclude components, optionally match components or match one out of a list of components. Additionally filters may contain wildcards for terms which is especially useful when combined with pairs.
 
-The following example shows a filter that matches all entities with a parent that do not have `Position`:
+The following example shows a query that matches all entities with a parent that do not have `Position`:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
 
 ```c
-ecs_filter_t *f = ecs_filter_init(world, &(ecs_filter_desc_t){
+ecs_query_t *q = ecs_query(world, {
     .terms = {
         { ecs_pair(EcsChildOf, EcsWildcard) }
         { ecs_id(Position), .oper = EcsNot },
@@ -1205,9 +1419,9 @@ ecs_filter_t *f = ecs_filter_init(world, &(ecs_filter_desc_t){
 <li><b class="tab-title">C++</b>
 
 ```cpp
-auto f = world.filter_builder<>()
-    .term(flecs::ChildOf, flecs::Wildcard)
-    .term<Position>().oper(flecs::Not)
+flecs::query<> q = world.query_builder()
+    .with(flecs::ChildOf, flecs::Wildcard)
+    .with<Position>().oper(flecs::Not)
     .build();
 
 // Iteration code is the same
@@ -1216,71 +1430,35 @@ auto f = world.filter_builder<>()
 <li><b class="tab-title">C#</b>
 
 ```cs
-using Filter f = world.FilterBuilder()
-    .Term(Ecs.ChildOf, Ecs.Wildcard)
-    .Term<Position>().Oper(Ecs.Not)
+using Query q = world.QueryBuilder()
+    .With(Ecs.ChildOf, Ecs.Wildcard)
+    .With<Position>().Oper(Ecs.Not)
     .Build();
+
+// Iteration code is the same
+```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+let q = world
+    .query::<()>()
+    .with::<(flecs::ChildOf, flecs::Wildcard)>()
+    .with::<Position>()
+    .set_oper(OperKind::Not)
+    .build();
 
 // Iteration code is the same
 ```
 </li>
 </ul>
 </div>
-
-### Query
-Queries are cached versions of filters. They are slower to create than filters, but much faster to iterate since this just means iterating their cache.
-
-The API for queries is similar to filters:
-<div class="flecs-snippet-tabs">
-<ul>
-<li><b class="tab-title">C</b>
-
-```c
-// Create a query with 2 terms
-ecs_query_t *q = ecs_query_init(world, &(ecs_query_desc_t){
-    .filter.terms = {
-        { ecs_id(Position) },
-        { ecs_pair(EcsChildOf, EcsWildcard) }
-    }
-});
-
-ecs_iter_t it = ecs_query_iter(world, q);
-while (ecs_query_next(&it)) {
-    // Same as for filters
-}
-```
-</li>
-<li><b class="tab-title">C++</b>
-
-```cpp
-// Create a query with two terms
-auto q = world.query_builder<Position>()
-    .term(flecs::ChildOf, flecs::Wildcard)
-    .build();
-
-// Iteration is the same as filters
-```
-</li>
-<li><b class="tab-title">C#</b>
-
-```cs
-// Create a query with two terms
-Query q = world.QueryBuilder<Position>()
-    .Term(Ecs.ChildOf, Ecs.Wildcard)
-    .Build();
-
-// Iteration is the same as filters
-```
-</li>
-</ul>
-</div>
-
-When using queries, make sure to reuse a query object instead of creating a new one each time you need it. Query creation is expensive, and many of the performance benefits of queries are lost when they are created in loops.
 
 See the [query manual](Queries.md) for more details.
 
 ### System
 A system is a query combined with a callback. Systems can be either ran manually or ran as part of an ECS-managed main loop (see [Pipeline](#pipeline)). The system API looks similar to queries:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1292,9 +1470,9 @@ ecs_run(world, Move, delta_time, NULL); // Run system
 
 // Option 2, use the ecs_system_init function/ecs_system macro
 ecs_entity_t move_sys = ecs_system(world, {
-    .query.filter.terms = {
-        {ecs_id(Position)},
-        {ecs_id(Velocity)},
+    .query.terms = {
+        { ecs_id(Position) },
+        { ecs_id(Velocity) },
     },
     .callback = Move
 });
@@ -1303,8 +1481,8 @@ ecs_run(world, move_sys, delta_time, NULL); // Run system
 
 // The callback code (same for both options)
 void Move(ecs_iter_t *it) {
-    Position *p = ecs_field(it, Position, 1);
-    Velocity *v = ecs_field(it, Velocity, 2);
+    Position *p = ecs_field(it, Position, 0);
+    Velocity *v = ecs_field(it, Velocity, 1);
 
     for (int i = 0; i < it->count; i++) {
         p[i].x += v[i].x * it->delta_time;
@@ -1318,14 +1496,12 @@ void Move(ecs_iter_t *it) {
 ```cpp
 // Use each() function that iterates each individual entity
 auto move_sys = world.system<Position, Velocity>()
-    .iter([](flecs::iter it, Position *p, Velocity *v) {
-        for (auto i : it) {
-            p[i].x += v[i].x * it.delta_time();
-            p[i].y += v[i].y * it.delta_time();
-        }
+    .each([](flecs::iter& it, size_t, Position& p, Velocity& v) {
+        p.x += v.x * it.delta_time();
+        p.y += v.y * it.delta_time();
     });
 
-    // Just like with filters & queries, systems have both the iter() and
+    // Just like with queries, systems have both the run() and
     // each() methods to iterate entities.
 
 move_sys.run();
@@ -1336,25 +1512,40 @@ move_sys.run();
 ```cs
 // Use Each() function that iterates each individual entity
 Routine moveSys = world.Routine<Position, Velocity>()
-    .Iter((Iter it, Field<Position> p, Field<Velocity> v) =>
+    .Each((Entity e, ref Position p, ref Velocity v) =>
     {
-        foreach (int i in it) 
-        {
-            p[i].X += v[i].X * it.DeltaTime();
-            p[i].Y += v[i].Y * it.DeltaTime();
-        }
+        p.X += v.X * it.DeltaTime();
+        p.Y += v.Y * it.DeltaTime();
     });
 
-    // Just like with filters & queries, systems have both the Iter() and
+    // Just like with queries, systems have both the Iter() and
     // Each() methods to iterate entities.
 
 moveSys.Run();
+```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+// Use each_entity() function that iterates each individual entity
+let move_sys = world
+    .system::<(&mut Position, &Velocity)>()
+    .each_iter(|it, i, (p, v)| {
+        p.x += v.x * it.delta_time();
+        p.y += v.y * it.delta_time();
+    });
+
+// Just like with queries, systems have both the run() and
+// each() methods to iterate entities.
+
+move_sys.run();
 ```
 </li>
 </ul>
 </div>
 
 Systems are stored as entities with an `EcsSystem` component (`flecs::System` in C++), similar to components. That means that an application can use a system as a regular entity:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1381,11 +1572,20 @@ moveSys.Entity.Add(Ecs.OnUpdate);
 moveSys.Entity.Destruct();
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+println!("System: {}", move_sys.name());
+move_sys.add::<flecs::pipeline::OnUpdate>();
+move_sys.destruct();
+```
+</li>
 </ul>
 </div>
 
 ### Pipeline
 A pipeline is a list of tags that when matched, produces a list of systems to run. These tags are also referred to as a system "phase". Flecs comes with a default pipeline that has the following phases:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1427,10 +1627,24 @@ Ecs.PreStore
 Ecs.OnStore
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+flecs::pipeline::OnLoad;
+flecs::pipeline::PostLoad;
+flecs::pipeline::PreUpdate;
+flecs::pipeline::OnUpdate;
+flecs::pipeline::OnValidate;
+flecs::pipeline::PostUpdate;
+flecs::pipeline::PreStore;
+flecs::pipeline::OnStore;
+```
+</li>
 </ul>
 </div>
 
 When a pipeline is executed, systems are ran in the order of the phases. This makes pipelines and phases the primary mechanism for defining ordering between systems. The following code shows how to assign systems to a pipeline, and how to run the pipeline with the `progress()` function:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1463,10 +1677,32 @@ world.Routine<Transform, Mesh>("Render").Kind(Ecs.OnStore).Each( ... );
 world.Progress();
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+world
+    .system_named::<(&mut Position, &Velocity)>("Move")
+    .kind::<flecs::pipeline::OnUpdate>()
+    .each(|(p, v)| {});
+
+world
+    .system_named::<(&mut Position, &Transform)>("Transform")
+    .kind::<flecs::pipeline::PostUpdate>()
+    .each(|(p, t)| {});
+    
+world
+    .system_named::<(&Transform, &mut Mesh)>("Render")
+    .kind::<flecs::pipeline::OnStore>()
+    .each(|(t, m)| {});
+
+world.progress();
+```
+</li>
 </ul>
 </div>
 
 Because phases are just tags that are added to systems, applications can use the regular API to add/remove systems to a phase:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1490,6 +1726,13 @@ moveSys.Add(Ecs.OnUpdate);
 moveSys.Remove(Ecs.PostUpdate);
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+move_sys.add::<flecs::pipeline::OnUpdate>();
+move_sys.remove::<flecs::pipeline::PostUpdate>();
+```
+</li>
 </ul>
 </div>
 
@@ -1507,14 +1750,14 @@ An example of an observer with two components:
 
 ```c
 ecs_observer(world, {
-    .filter.terms = { { ecs_id(Position) }, { ecs_id(Velocity) }},
-    .event = EcsOnSet,
+    .query.terms = { { ecs_id(Position) }, { ecs_id(Velocity) }},
+    .event = { EcsOnSet },
     .callback = OnSetPosition
 });
 
 // Callback code is same as system
 
-ecs_entity_t e = ecs_new_id(world);    // Doesn't invoke the observer
+ecs_entity_t e = ecs_new(world);    // Doesn't invoke the observer
 ecs_set(world, e, Position, {10, 20}); // Doesn't invoke the observer
 ecs_set(world, e, Velocity, {1, 2});   // Invokes the observer
 ecs_set(world, e, Position, {20, 40}); // Invokes the observer
@@ -1523,7 +1766,9 @@ ecs_set(world, e, Position, {20, 40}); // Invokes the observer
 <li><b class="tab-title">C++</b>
 
 ```cpp
-world.observer<Position, Velocity>("OnSetPosition").event(flecs::OnSet).each( ... );
+world.observer<Position, Velocity>("OnSetPosition")
+    .event(flecs::OnSet)
+    .each( ... ); // Callback code is same as system
 
 auto e = ecs.entity();     // Doesn't invoke the observer
 e.set<Position>({10, 20}); // Doesn't invoke the observer
@@ -1534,7 +1779,9 @@ e.set<Position>({20, 30}); // Invokes the observer
 <li><b class="tab-title">C#</b>
 
 ```cs
-world.Observer<Position, Velocity>("OnSetPosition").Event(Ecs.OnSet).Each( ... );
+world.Observer<Position, Velocity>("OnSetPosition")
+    .Event(Ecs.OnSet)
+    .Each( ... ); // Callback code is same as system
 
 Entity e = ecs.Entity();      // Doesn't invoke the observer
 e.Set<Position>(new(10, 20)); // Doesn't invoke the observer
@@ -1542,11 +1789,25 @@ e.Set<Velocity>(new(1, 2));   // Invokes the observer
 e.Set<Position>(new(20, 30)); // Invokes the observer
 ```
 </li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+world
+    .observer_named::<flecs::OnSet, (&Position, &Velocity)>("OnSetPosition")
+    .each(|(p, v)| {}); // Callback code is same as system
+
+let e = world.entity(); // Doesn't invoke the observer
+e.set(Position { x: 10.0, y: 20.0 }); // Doesn't invoke the observer
+e.set(Velocity { x: 1.0, y: 2.0 }); // Invokes the observer
+e.set(Position { x: 30.0, y: 40.0 }); // Invokes the observer
+```
+</li>
 </ul>
 </div>
 
 ### Module
 A module is a function that imports and organizes components, systems, triggers, observers, prefabs into the world as reusable units of code. A well designed module has no code that directly relies on code of another module, except for components definitions. All module contents are stored as child entities inside the module scope with the `ChildOf` relationship. The following examples show how to define a module in C and C++:
+
 <div class="flecs-snippet-tabs">
 <ul>
 <li><b class="tab-title">C</b>
@@ -1608,6 +1869,25 @@ public struct MyModule : IFlecsModule
 // Import code
 world.Import<MyModule>();
 ```
+</li>
+<li><b class="tab-title">Rust</b>
+
+```rust
+#[derive(Component)]
+struct MyModule;
+
+impl Module for MyModule {
+    fn module(world: &World) {
+        world.module::<MyModule>("MyModule");
+        // Define components, systems, triggers, ... as usual. They will be
+        // automatically created inside the scope of the module.
+    }
+}
+
+// Import code
+world.import::<MyModule>();
+```
+
 </li>
 </ul>
 </div>

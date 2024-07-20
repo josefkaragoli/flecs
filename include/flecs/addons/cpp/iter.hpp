@@ -30,26 +30,26 @@ template <typename T>
 struct range_iterator
 {
     explicit range_iterator(T value)
-        : m_value(value){}
+        : value_(value){}
 
     bool operator!=(range_iterator const& other) const
     {
-        return m_value != other.m_value;
+        return value_ != other.value_;
     }
 
     T const& operator*() const
     {
-        return m_value;
+        return value_;
     }
 
     range_iterator& operator++()
     {
-        ++m_value;
+        ++value_;
         return *this;
     }
 
 private:
-    T m_value;
+    T value_;
 };
 
 } // namespace _
@@ -75,17 +75,14 @@ public:
      *
      * @param it Pointer to C iterator.
      */
-    iter(ecs_iter_t *it) : m_iter(it) {
-        m_begin = 0;
-        m_end = static_cast<std::size_t>(it->count);
-    }
+    iter(ecs_iter_t *it) : iter_(it) { }
 
     row_iterator begin() const {
-        return row_iterator(m_begin);
+        return row_iterator(0);
     }
 
     row_iterator end() const {
-        return row_iterator(m_end);
+        return row_iterator(static_cast<size_t>(iter_->count));
     }
 
     flecs::entity system() const;
@@ -97,19 +94,23 @@ public:
     flecs::world world() const;
 
     const flecs::iter_t* c_ptr() const {
-        return m_iter;
+        return iter_;
     }
 
     size_t count() const {
-        return static_cast<size_t>(m_iter->count);
+        ecs_check(iter_->flags & EcsIterIsValid, ECS_INVALID_PARAMETER,
+            "operation invalid before calling next()");
+        return static_cast<size_t>(iter_->count);
+    error:
+        return 0;
     }
 
     ecs_ftime_t delta_time() const {
-        return m_iter->delta_time;
+        return iter_->delta_time;
     }
 
     ecs_ftime_t delta_system_time() const {
-        return m_iter->delta_system_time;
+        return iter_->delta_system_time;
     }
 
     flecs::type type() const;
@@ -122,7 +123,7 @@ public:
      * ctx contains the context pointer assigned to a system.
      */
     void* ctx() {
-        return m_iter->ctx;
+        return iter_->ctx;
     }
 
     /** Access ctx.
@@ -130,14 +131,14 @@ public:
      */
     template <typename T>
     T* ctx() {
-        return static_cast<T*>(m_iter->ctx);
+        return static_cast<T*>(iter_->ctx);
     }
 
     /** Access param.
      * param contains the pointer passed to the param argument of system::run
      */
     void* param() {
-        return m_iter->param;
+        return iter_->param;
     }
 
     /** Access param.
@@ -146,7 +147,7 @@ public:
     template <typename T>
     T* param() {
         /* TODO: type check */
-        return static_cast<T*>(m_iter->param);
+        return static_cast<T*>(iter_->param);
     }
 
     /** Obtain mutable handle to entity being iterated over.
@@ -160,7 +161,7 @@ public:
      * @param index The field index.
      */
     bool is_self(int32_t index) const {
-        return ecs_field_is_self(m_iter, index);
+        return ecs_field_is_self(iter_, index);
     }
 
     /** Returns whether field is set.
@@ -168,7 +169,7 @@ public:
      * @param index The field index.
      */
     bool is_set(int32_t index) const {
-        return ecs_field_is_set(m_iter, index);
+        return ecs_field_is_set(iter_, index);
     }
 
     /** Returns whether field is readonly.
@@ -176,13 +177,13 @@ public:
      * @param index The field index.
      */
     bool is_readonly(int32_t index) const {
-        return ecs_field_is_readonly(m_iter, index);
+        return ecs_field_is_readonly(iter_, index);
     }
 
     /** Number of fields in iterator.
      */
     int32_t field_count() const {
-        return m_iter->field_count;
+        return iter_->field_count;
     }
 
     /** Size of field data type.
@@ -190,7 +191,7 @@ public:
      * @param index The field id.
      */
     size_t size(int32_t index) const {
-        return ecs_field_size(m_iter, index);
+        return ecs_field_size(iter_, index);
     }
 
     /** Obtain field source (0 if This).
@@ -217,13 +218,19 @@ public:
      * @param index The field index.
      */
     int32_t column_index(int32_t index) const {
-        return ecs_field_column_index(m_iter, index);
+        return ecs_field_column(iter_, index);
+    }
+
+    /** Obtain term that triggered an observer
+     */
+    int32_t term_index() const {
+        return iter_->term_index + 1; // in iter_t, the term index is zero-based, so add 1.
     }
 
     /** Convert current iterator result to string.
      */
     flecs::string str() const {
-        char *s = ecs_iter_str(m_iter);
+        char *s = ecs_iter_str(iter_);
         return flecs::string(s);
     }
 
@@ -259,7 +266,7 @@ public:
      * @param index The field index.
      */
     flecs::untyped_field field(int32_t index) const {
-        ecs_assert(!(m_iter->flags & EcsIterCppEach), ECS_INVALID_OPERATION,
+        ecs_assert(!(iter_->flags & EcsIterCppEach), ECS_INVALID_OPERATION,
             "cannot .field from .each, use .field_at(%d, row) instead", index);
         return get_unchecked_field(index);
     }
@@ -281,7 +288,7 @@ public:
         typename std::enable_if<
             std::is_const<T>::value == false, void>::type* = nullptr>
     A& field_at(int32_t index, size_t row) const {
-        ecs_assert(!ecs_field_is_readonly(m_iter, index),
+        ecs_assert(!ecs_field_is_readonly(iter_, index),
             ECS_ACCESS_VIOLATION, NULL);
         return get_field<A>(index)[row];
     }
@@ -291,18 +298,14 @@ public:
      * @return The entity ids.
      */
     flecs::field<const flecs::entity_t> entities() const {
-        return flecs::field<const flecs::entity_t>(m_iter->entities, static_cast<size_t>(m_iter->count), false);
-    }
-
-    /** Obtain the total number of tables the iterator will iterate over. */
-    int32_t table_count() const {
-        return m_iter->table_count;
+        return flecs::field<const flecs::entity_t>(
+            iter_->entities, static_cast<size_t>(iter_->count), false);
     }
 
     /** Check if the current table has changed since the last iteration.
      * Can only be used when iterating queries and/or systems. */
     bool changed() {
-        return ecs_query_changed(nullptr, m_iter);
+        return ecs_iter_changed(iter_);
     }
 
     /** Skip current table.
@@ -313,15 +316,14 @@ public:
      * When this operation is invoked, the components of the current table will
      * not be marked dirty. */
     void skip() {
-        ecs_query_skip(m_iter);
+        ecs_iter_skip(iter_);
     }
 
     /* Return group id for current table (grouped queries only) */
     uint64_t group_id() const {
-        return m_iter->group_id;
+        return iter_->group_id;
     }
 
-#ifdef FLECS_RULES
     /** Get value of variable by id.
      * Get value of a query variable for current result.
      */
@@ -331,7 +333,48 @@ public:
      * Get value of a query variable for current result.
      */
     flecs::entity get_var(const char *name) const;
-#endif
+
+    /** Progress iterator.
+     * This operation should only be called from a context where the iterator is
+     * not being progressed automatically. An example of a valid context is
+     * inside of a run() callback. An example of an invalid context is inside of
+     * an each() callback.
+     */
+    bool next() {
+        if (iter_->flags & EcsIterIsValid && iter_->table) {
+            ECS_TABLE_UNLOCK(iter_->world, iter_->table);
+        }
+        bool result = iter_->next(iter_);
+        iter_->flags |= EcsIterIsValid;
+        if (result && iter_->table) {
+            ECS_TABLE_LOCK(iter_->world, iter_->table);
+        }
+        return result;
+    }
+
+    /** Forward to each.
+     * If a system has an each callback registered, this operation will forward
+     * the current iterator to the each callback.
+     */
+    void each() {
+        iter_->callback(iter_);
+    }
+
+    /** Free iterator resources.
+     * This operation only needs to be called when the iterator is not iterated
+     * until completion (e.g. the last call to next() did not return false).
+     * 
+     * Failing to call this operation on an unfinished iterator will throw a
+     * fatal LEAK_DETECTED error.
+     * 
+     * @see ecs_iter_fini()
+     */
+    void fini() {
+        if (iter_->flags & EcsIterIsValid && iter_->table) {
+            ECS_TABLE_UNLOCK(iter_->world, iter_->table);
+        }
+        ecs_iter_fini(iter_);
+    }
 
 private:
     /* Get field, check if correct type is used */
@@ -339,14 +382,14 @@ private:
     flecs::field<T> get_field(int32_t index) const {
 
 #ifndef FLECS_NDEBUG
-        ecs_entity_t term_id = ecs_field_id(m_iter, index);
+        ecs_entity_t term_id = ecs_field_id(iter_, index);
         ecs_assert(ECS_HAS_ID_FLAG(term_id, PAIR) ||
-            term_id == _::cpp_type<T>::id(m_iter->world),
+            term_id == _::type<T>::id(iter_->world),
             ECS_COLUMN_TYPE_MISMATCH, NULL);
 #endif
 
         size_t count;
-        bool is_shared = !ecs_field_is_self(m_iter, index);
+        bool is_shared = !ecs_field_is_self(iter_, index);
 
         /* If a shared column is retrieved with 'column', there will only be a
          * single value. Ensure that the application does not accidentally read
@@ -356,18 +399,18 @@ private:
         } else {
             /* If column is owned, there will be as many values as there are
              * entities. */
-            count = static_cast<size_t>(m_iter->count);
+            count = static_cast<size_t>(iter_->count);
         }
 
         return flecs::field<A>(
-            static_cast<T*>(ecs_field_w_size(m_iter, sizeof(A), index)),
+            static_cast<T*>(ecs_field_w_size(iter_, sizeof(A), index)),
             count, is_shared);
     }
 
     flecs::untyped_field get_unchecked_field(int32_t index) const {
         size_t count;
-        size_t size = ecs_field_size(m_iter, index);
-        bool is_shared = !ecs_field_is_self(m_iter, index);
+        size_t size = ecs_field_size(iter_, index);
+        bool is_shared = !ecs_field_is_self(iter_, index);
 
         /* If a shared column is retrieved with 'column', there will only be a
          * single value. Ensure that the application does not accidentally read
@@ -377,16 +420,14 @@ private:
         } else {
             /* If column is owned, there will be as many values as there are
              * entities. */
-            count = static_cast<size_t>(m_iter->count);
+            count = static_cast<size_t>(iter_->count);
         }
 
         return flecs::untyped_field(
-            ecs_field_w_size(m_iter, 0, index), size, count, is_shared);
+            ecs_field_w_size(iter_, 0, index), size, count, is_shared);
     }
 
-    flecs::iter_t *m_iter;
-    std::size_t m_begin;
-    std::size_t m_end;
+    flecs::iter_t *iter_;
 };
 
 } // namespace flecs

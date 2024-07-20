@@ -9,6 +9,7 @@
 #include "private_types.h"
 #include "storage/table_cache.h"
 #include "storage/id_index.h"
+#include "query/query.h"
 #include "observable.h"
 #include "iter.h"
 #include "poly.h"
@@ -37,7 +38,12 @@ void flecs_bootstrap(
     ecs_add_id(world, name, EcsFinal);\
     ecs_add_pair(world, name, EcsChildOf, ecs_get_scope(world));\
     ecs_set_name(world, name, (const char*)&#name[ecs_os_strlen(world->info.name_prefix)]);\
-    ecs_set_symbol(world, name, #name)
+    ecs_set_symbol(world, name, #name);
+
+#define flecs_bootstrap_trait(world, name)\
+    flecs_bootstrap_tag(world, name)\
+    ecs_add_id(world, name, EcsTrait)
+
 
 /* Bootstrap functions for other parts in the code */
 void flecs_bootstrap_hierarchy(ecs_world_t *world);
@@ -113,52 +119,9 @@ void flecs_invoke_hook(
 //// Query API
 ////////////////////////////////////////////////////////////////////////////////
 
-/* Match table with term */
-bool flecs_term_match_table(
-    ecs_world_t *world,
-    const ecs_term_t *term,
-    const ecs_table_t *table,
-    ecs_id_t *id_out,
-    int32_t *column_out,
-    ecs_entity_t *subject_out,
-    int32_t *match_indices,
-    bool first,
-    ecs_flags32_t iter_flags);
-
-/* Match table with filter */
-bool flecs_filter_match_table(
-    ecs_world_t *world,
-    const ecs_filter_t *filter,
-    const ecs_table_t *table,
-    ecs_id_t *ids,
-    int32_t *columns,
-    ecs_entity_t *sources,
-    int32_t *match_indices,
-    int32_t *matches_left,
-    bool first,
-    int32_t skip_term,
-    ecs_flags32_t iter_flags);
-
-ecs_iter_t flecs_filter_iter_w_flags(
-    const ecs_world_t *stage,
-    const ecs_filter_t *filter,
-    ecs_flags32_t flags);
-
-void flecs_query_notify(
-    ecs_world_t *world,
-    ecs_query_t *query,
-    ecs_query_event_t *event);
-
-ecs_id_t flecs_to_public_id(
-    ecs_id_t id);
-
-ecs_id_t flecs_from_public_id(
-    ecs_world_t *world,
-    ecs_id_t id);
-
-void flecs_filter_apply_iter_flags(
+void flecs_query_apply_iter_flags(
     ecs_iter_t *it,
-    const ecs_filter_t *filter);
+    const ecs_query_t *query);
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Safe(r) integer casting
@@ -219,25 +182,6 @@ uint64_t flecs_ito_(
 #define flecs_itoi32(value) flecs_ito(int32_t, (value))
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Entity filter
-////////////////////////////////////////////////////////////////////////////////
-
-void flecs_entity_filter_init(
-    ecs_world_t *world,
-    ecs_entity_filter_t **entity_filter,
-    const ecs_filter_t *filter,
-    const ecs_table_t *table,
-    ecs_id_t *ids,
-    int32_t *columns);
-
-void flecs_entity_filter_fini(
-    ecs_world_t *world,
-    ecs_entity_filter_t *entity_filter);
-
-int flecs_entity_filter_next(
-    ecs_entity_filter_iter_t *it);
-
-////////////////////////////////////////////////////////////////////////////////
 //// Utilities
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,7 +231,6 @@ bool flecs_name_is_id(
     const char *name);
 
 ecs_entity_t flecs_name_to_id(
-    const ecs_world_t *world,
     const char *name);
 
 /* Convert floating point to string */
@@ -308,13 +251,9 @@ void flecs_colorize_buf(
     bool enable_colors,
     ecs_strbuf_t *buf);
 
-bool flecs_isident(
-    char ch);
-
 int32_t flecs_search_w_idr(
     const ecs_world_t *world,
     const ecs_table_t *table,
-    ecs_id_t id,
     ecs_id_t *id_out,
     ecs_id_record_t *idr);
 
@@ -324,7 +263,7 @@ int32_t flecs_search_relation_w_idr(
     int32_t offset,
     ecs_id_t id,
     ecs_entity_t rel,
-    ecs_flags32_t flags,
+    ecs_flags64_t flags,
     ecs_entity_t *subject_out,
     ecs_id_t *id_out,
     struct ecs_table_record_t **tr_out,
@@ -335,5 +274,13 @@ bool flecs_type_can_inherit_id(
     const ecs_table_t *table,
     const ecs_id_record_t *idr,
     ecs_id_t id);
+
+int ecs_term_finalize(
+    const ecs_world_t *world,
+    ecs_term_t *term);
+
+int32_t flecs_query_pivot_term(
+    const ecs_world_t *world,
+    const ecs_query_t *query);
 
 #endif

@@ -46,6 +46,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -983,7 +986,7 @@ void http_append_send_headers(
     ecs_strbuf_appendlit(hdrs, "Access-Control-Allow-Origin: *\r\n");
     if (preflight) {
         ecs_strbuf_appendlit(hdrs, "Access-Control-Allow-Private-Network: true\r\n");
-        ecs_strbuf_appendlit(hdrs, "Access-Control-Allow-Methods: GET, PUT, OPTIONS\r\n");
+        ecs_strbuf_appendlit(hdrs, "Access-Control-Allow-Methods: GET, PUT, DELETE, OPTIONS\r\n");
         ecs_strbuf_appendlit(hdrs, "Access-Control-Max-Age: 600\r\n");
     }
 
@@ -1551,8 +1554,10 @@ void ecs_http_server_stop(
     ecs_http_server_t* srv) 
 {
     ecs_check(srv != NULL, ECS_INVALID_PARAMETER, NULL);
-    ecs_check(srv->initialized, ECS_INVALID_OPERATION, NULL);
-    ecs_check(srv->should_run, ECS_INVALID_PARAMETER, NULL);
+    ecs_check(srv->initialized, ECS_INVALID_OPERATION, 
+        "cannot stop HTTP server: not initialized");
+    ecs_check(srv->should_run, ECS_INVALID_PARAMETER, 
+        "cannot stop HTTP server: already stopped/stopping");
 
     /* Stop server thread */
     ecs_dbg("http: shutting down server thread");
@@ -1690,14 +1695,13 @@ int ecs_http_server_request(
     int32_t method_len = ecs_os_strlen(method);
     int32_t req_len = ecs_os_strlen(req);
     int32_t http_ver_len = ecs_os_strlen(http_ver);
+    char reqbuf[1024], *reqstr = reqbuf;
 
     int32_t len = method_len + req_len + http_ver_len + 1;
     if (method_len + req_len + http_ver_len >= 1024) {
-        ecs_err("HTTP request too long");
-        return -1;
+        reqstr = ecs_os_malloc(len + 1);
     }
 
-    char reqstr[1024];
     char *ptr = reqstr;
     ecs_os_memcpy(ptr, method, method_len); ptr += method_len;
     ptr[0] = ' '; ptr ++;
@@ -1705,7 +1709,12 @@ int ecs_http_server_request(
     ecs_os_memcpy(ptr, http_ver, http_ver_len); ptr += http_ver_len;
     ptr[0] = '\n';
 
-    return ecs_http_server_http_request(srv, reqstr, len, reply_out);
+    int result = ecs_http_server_http_request(srv, reqstr, len, reply_out);
+    if (reqbuf != reqstr) {
+        ecs_os_free(reqstr);
+    }
+
+    return result;
 }
 
 void* ecs_http_server_ctx(

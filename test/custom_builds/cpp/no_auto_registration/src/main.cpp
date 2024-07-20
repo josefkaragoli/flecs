@@ -6,16 +6,14 @@ int main(int, char *[]) {
 
     world.import<flecs::units>();
     world.import<flecs::alerts>();
-    world.import<flecs::monitor>();
+    world.import<flecs::stats>();
 
     // check if builtin components are registered
 
     // core
     world.id<flecs::Component>();
     world.id<flecs::Identifier>();
-    world.id<flecs::Iterable>();
     world.id<flecs::Poly>();
-    world.id<flecs::Target>();
 
     // alerts
     world.id<flecs::alerts::AlertsActive>();
@@ -63,8 +61,8 @@ int main(int, char *[]) {
     world.id<flecs::enum_constant_t>();
     world.id<flecs::bitmask_constant_t>();
 
-    world.id<flecs::MetaType>();
-    world.id<flecs::MetaTypeSerialized>();
+    world.id<flecs::Type>();
+    world.id<flecs::TypeSerializer>();
     world.id<flecs::Primitive>();
     world.id<flecs::Enum>();
     world.id<flecs::Bitmask>();

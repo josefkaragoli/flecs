@@ -24,7 +24,8 @@ void Rest_get(void) {
     char *reply_str = ecs_strbuf_get(&reply.body);
     test_assert(reply_str != NULL);
     test_str(reply_str,
-        "{\"path\":\"flecs.core.World\", \"label\":\"World\", \"ids\":[]}");
+            "{\"parent\":\"flecs.core\", \"name\":\"World\", "
+                "\"components\":{\"(flecs.core.Identifier,flecs.core.Symbol)\":null, \"(flecs.doc.Description,flecs.doc.Brief)\":{\"value\":\"Entity associated with world\"}}}");
     ecs_os_free(reply_str);
 
     ecs_rest_server_fini(srv);
@@ -44,26 +45,28 @@ void Rest_get_cached(void) {
     {
         ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
         test_int(0, ecs_http_server_request(srv, "GET",
-            "/entity/flecs/core/World?label=true", &reply));
+            "/entity/flecs/core/World", &reply));
         test_int(reply.code, 200);
         
         char *reply_str = ecs_strbuf_get(&reply.body);
         test_assert(reply_str != NULL);
         test_str(reply_str,
-            "{\"path\":\"flecs.core.World\", \"label\":\"World\", \"ids\":[]}");
+            "{\"parent\":\"flecs.core\", \"name\":\"World\", "
+                "\"components\":{\"(flecs.core.Identifier,flecs.core.Symbol)\":null, \"(flecs.doc.Description,flecs.doc.Brief)\":{\"value\":\"Entity associated with world\"}}}");
         ecs_os_free(reply_str);
     }
 
     {
         ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
         test_int(0, ecs_http_server_request(srv, "GET",
-            "/entity/flecs/core/World?label=true", &reply));
+            "/entity/flecs/core/World", &reply));
         test_int(reply.code, 200);
         
         char *reply_str = ecs_strbuf_get(&reply.body);
         test_assert(reply_str != NULL);
         test_str(reply_str,
-            "{\"path\":\"flecs.core.World\", \"label\":\"World\", \"ids\":[]}");
+            "{\"parent\":\"flecs.core\", \"name\":\"World\", "
+                "\"components\":{\"(flecs.core.Identifier,flecs.core.Symbol)\":null, \"(flecs.doc.Description,flecs.doc.Brief)\":{\"value\":\"Entity associated with world\"}}}");
         ecs_os_free(reply_str);
     }
 
@@ -123,7 +126,7 @@ void Rest_try_query(void) {
     {
         ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
         test_int(-1, ecs_http_server_request(srv, "GET",
-            "/query?q=Foo", &reply));
+            "/query?expr=Foo", &reply));
         test_int(reply.code, 400); // No try, should error
         ecs_strbuf_reset(&reply.body);
     }
@@ -131,7 +134,7 @@ void Rest_try_query(void) {
     {
         ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
         test_int(0, ecs_http_server_request(srv, "GET",
-            "/query?q=Foo&try=true", &reply));
+            "/query?expr=Foo&try=true", &reply));
         test_int(reply.code, 200); // With try, should not error
         ecs_strbuf_reset(&reply.body);
     }
@@ -149,18 +152,18 @@ void Rest_query(void) {
 
     ECS_COMPONENT(world, Position);
 
-    ecs_entity_t e = ecs_new_entity(world, "e");
+    ecs_entity_t e = ecs_entity(world, { .name = "e" });
     ecs_set(world, e, Position, {10, 20});
 
     ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
     test_int(0, ecs_http_server_request(srv, "GET",
-        "/query?q=Position", &reply));
+        "/query?expr=Position", &reply));
     test_int(reply.code, 200);
     
     char *reply_str = ecs_strbuf_get(&reply.body);
     test_assert(reply_str != NULL);
     test_str(reply_str,
-        "{\"results\":[{\"entities\":[\"e\"]}]}");
+        "{\"results\":[{\"name\":\"e\", \"fields\":{\"values\":[0]}}]}");
     ecs_os_free(reply_str);
 
     ecs_rest_server_fini(srv);
@@ -177,13 +180,13 @@ void Rest_named_query(void) {
     ECS_COMPONENT(world, Position);
 
     ecs_query(world, {
-        .filter.entity = ecs_entity(world, { .name = "position_query" }),
-        .filter.terms = {
+        .entity = ecs_entity(world, { .name = "position_query" }),
+        .terms = {
             { .id = ecs_id(Position) }
         }
     });
 
-    ecs_entity_t e = ecs_new_entity(world, "e");
+    ecs_entity_t e = ecs_entity(world, { .name = "e" });
     ecs_set(world, e, Position, {10, 20});
 
     ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
@@ -194,7 +197,7 @@ void Rest_named_query(void) {
     char *reply_str = ecs_strbuf_get(&reply.body);
     test_assert(reply_str != NULL);
     test_str(reply_str,
-        "{\"results\":[{\"entities\":[\"e\"]}]}");
+        "{\"results\":[{\"name\":\"e\", \"fields\":{\"values\":[0]}}]}");
     ecs_os_free(reply_str);
 
     ecs_rest_server_fini(srv);
@@ -242,8 +245,8 @@ void Rest_request_commands(void) {
         ecs_os_free(reply_str);
     }
 
-    ecs_entity_t e1 = ecs_new_id(world);
-    ecs_entity_t e2 = ecs_new_id(world);
+    ecs_entity_t e1 = ecs_new(world);
+    ecs_entity_t e2 = ecs_new(world);
 
     ecs_frame_begin(world, 0);
     ecs_defer_begin(world);
@@ -288,8 +291,8 @@ void Rest_request_commands_2_syncs(void) {
         ecs_os_free(reply_str);
     }
 
-    ecs_entity_t e1 = ecs_new_id(world);
-    ecs_entity_t e2 = ecs_new_id(world);
+    ecs_entity_t e1 = ecs_new(world);
+    ecs_entity_t e2 = ecs_new(world);
 
     ecs_frame_begin(world, 0);
     ecs_defer_begin(world);
@@ -401,8 +404,8 @@ void Rest_request_commands_garbage_collect(void) {
         ecs_os_free(reply_str);
     }
 
-    ecs_entity_t e1 = ecs_new_id(world);
-    ecs_entity_t e2 = ecs_new_id(world);
+    ecs_entity_t e1 = ecs_new(world);
+    ecs_entity_t e2 = ecs_new(world);
 
     ecs_frame_begin(world, 0);
     ecs_defer_begin(world);
@@ -458,6 +461,82 @@ void Rest_request_commands_garbage_collect(void) {
         test_assert(reply_str != NULL);
         ecs_os_free(reply_str);
     }
+
+    ecs_rest_server_fini(srv);
+
+    ecs_fini(world);
+}
+
+void Rest_script_error(void) {
+    ecs_world_t *world = ecs_init();
+
+    ECS_COMPONENT(world, Position);
+
+    ecs_script(world, {
+        .entity = ecs_entity(world, { .name = "main.flecs" }),
+        .code = ""
+    });
+
+    ecs_http_server_t *srv = ecs_rest_server_init(world, NULL);
+    test_assert(srv != NULL);
+
+    {
+        ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
+        ecs_log_set_level(-4);
+        test_int(-1, ecs_http_server_request(srv, "PUT",
+            "/script/main.flecs?code=struct%20Position%20%7B%0A%20%20x%20%3A%0A%7D",
+            &reply));
+        test_int(reply.code, 400);
+        char *reply_str = ecs_strbuf_get(&reply.body);
+        test_assert(reply_str != NULL);
+        ecs_os_free(reply_str);
+    }
+
+    ecs_rest_server_fini(srv);
+
+    ecs_fini(world);
+}
+
+void Rest_import_rest_after_mini(void) {
+    ecs_world_t *world = ecs_mini();
+
+    ECS_IMPORT(world, FlecsRest);
+
+    test_assert(ecs_id(EcsRest) != 0);
+
+    ecs_fini(world);
+}
+
+static
+void Move(ecs_iter_t *it) { }
+
+void Rest_get_pipeline_stats_after_delete_system(void) {
+    ecs_world_t *world = ecs_init();
+
+    ECS_IMPORT(world, FlecsStats);
+
+    ECS_COMPONENT(world, Position);
+    ECS_COMPONENT(world, Velocity);
+
+    ECS_SYSTEM(world, Move, EcsOnUpdate, Position, Velocity);
+
+    ecs_http_server_t *srv = ecs_rest_server_init(world, NULL);
+    test_assert(srv != NULL);
+
+    ecs_progress(world, 1.0);
+
+    ecs_delete(world, ecs_id(Move));
+
+    ecs_progress(world, 1.0);
+
+    ecs_http_reply_t reply = ECS_HTTP_REPLY_INIT;
+    test_int(0, ecs_http_server_request(srv, "GET",
+        "/stats/pipeline?name=all&period=1m", &reply));
+    test_int(reply.code, 200);
+    
+    char *reply_str = ecs_strbuf_get(&reply.body);
+    test_assert(reply_str != NULL);
+    ecs_os_free(reply_str);
 
     ecs_rest_server_fini(srv);
 

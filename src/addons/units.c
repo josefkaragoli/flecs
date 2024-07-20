@@ -11,6 +11,7 @@ void FlecsUnitsImport(
     ecs_world_t *world)
 {
     ECS_MODULE(world, FlecsUnits);
+    ECS_IMPORT(world, FlecsMeta);
 
 #ifdef FLECS_DOC
     ECS_IMPORT(world, FlecsDoc);
@@ -22,7 +23,7 @@ void FlecsUnitsImport(
 
     EcsUnitPrefixes = ecs_entity(world, {
         .name = "prefixes",
-        .add = { EcsModule }
+        .add = ecs_ids( EcsModule )
     });
 
     /* Initialize unit prefixes */
@@ -816,6 +817,29 @@ void FlecsUnitsImport(
         });
     ecs_set_scope(world, prev_scope);
 
+    /* Color */
+
+    EcsColor = ecs_quantity_init(world, &(ecs_entity_desc_t){ 
+        .name = "Color" });
+    prev_scope = ecs_set_scope(world, EcsColor);
+        EcsColorRgb = ecs_unit_init(world, &(ecs_unit_desc_t){ 
+            .entity = ecs_entity(world, { .name = "Rgb" }),
+            .quantity = EcsColor });
+
+        EcsColorHsl = ecs_unit_init(world, &(ecs_unit_desc_t){ 
+            .entity = ecs_entity(world, { .name = "Hsl" }),
+            .quantity = EcsColor });
+
+        EcsColorCss = ecs_unit_init(world, &(ecs_unit_desc_t){ 
+            .entity = ecs_entity(world, { .name = "Css" }),
+            .quantity = EcsColor });
+        ecs_primitive_init(world, &(ecs_primitive_desc_t){
+            .entity = EcsColorCss,
+            .kind = EcsString
+        });
+
+    ecs_set_scope(world, prev_scope);
+
     /* DeciBel */
 
     EcsBel = ecs_unit_init(world, &(ecs_unit_desc_t){ 
@@ -833,6 +857,8 @@ void FlecsUnitsImport(
         .entity = EcsDeciBel,
         .kind = EcsF32
     });
+
+    /* Frequency */
 
     EcsFrequency = ecs_quantity_init(world, &(ecs_entity_desc_t){ 
         .name = "Frequency" });

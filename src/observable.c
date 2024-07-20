@@ -17,7 +17,6 @@ void flecs_observable_init(
     observable->on_add.event = EcsOnAdd;
     observable->on_remove.event = EcsOnRemove;
     observable->on_set.event = EcsOnSet;
-    observable->un_set.event = EcsUnSet;
 }
 
 void flecs_observable_fini(
@@ -29,8 +28,6 @@ void flecs_observable_fini(
         ECS_INTERNAL_ERROR, NULL);
     ecs_assert(!ecs_map_is_init(&observable->on_set.event_ids), 
         ECS_INTERNAL_ERROR, NULL);
-    ecs_assert(!ecs_map_is_init(&observable->un_set.event_ids), 
-        ECS_INTERNAL_ERROR, NULL);
 
     ecs_sparse_t *events = &observable->events;
     int32_t i, count = flecs_sparse_count(events);
@@ -40,7 +37,7 @@ void flecs_observable_fini(
         ecs_assert(er != NULL, ECS_INTERNAL_ERROR, NULL);
         (void)er;
 
-        /* All triggers should've unregistered by now */
+        /* All observers should've unregistered by now */
         ecs_assert(!ecs_map_is_init(&er->event_ids), 
             ECS_INTERNAL_ERROR, NULL);
     }
@@ -55,11 +52,10 @@ ecs_event_record_t* flecs_event_record_get(
     ecs_assert(o != NULL, ECS_INTERNAL_ERROR, NULL);
     
     /* Builtin events*/
-    if      (event == EcsOnAdd)     return ECS_CONST_CAST(ecs_event_record_t*, &o->on_add);
-    else if (event == EcsOnRemove)  return ECS_CONST_CAST(ecs_event_record_t*, &o->on_remove);
-    else if (event == EcsOnSet)     return ECS_CONST_CAST(ecs_event_record_t*, &o->on_set);
-    else if (event == EcsUnSet)     return ECS_CONST_CAST(ecs_event_record_t*, &o->un_set);
-    else if (event == EcsWildcard)  return ECS_CONST_CAST(ecs_event_record_t*, &o->on_wildcard);
+    if      (event == EcsOnAdd)    return ECS_CONST_CAST(ecs_event_record_t*, &o->on_add);
+    else if (event == EcsOnRemove) return ECS_CONST_CAST(ecs_event_record_t*, &o->on_remove);
+    else if (event == EcsOnSet)    return ECS_CONST_CAST(ecs_event_record_t*, &o->on_set);
+    else if (event == EcsWildcard) return ECS_CONST_CAST(ecs_event_record_t*, &o->on_wildcard);
 
     /* User events */
     return flecs_sparse_try_t(&o->events, ecs_event_record_t, event);
@@ -336,6 +332,7 @@ void flecs_emit_propagate(
         ecs_dbg_3("propagate events/invalidate cache for %s", idstr);
         ecs_os_free(idstr);
     }
+
     ecs_log_push_3();
 
     /* Propagate to records of traversable relationships */
@@ -498,6 +495,7 @@ void flecs_override_copy(
     ecs_copy_t copy = ti->hooks.copy;
     ecs_size_t size = ti->size;
     int32_t i;
+
     if (copy) {
         for (i = 0; i < count; i ++) {
             copy(ptr, src, 1, ti);
@@ -539,7 +537,7 @@ void* flecs_override(
              * (like what happens during an auto override), we need to copy the
              * value of the inherited component to the new component.
              * Also flag to the callee that this component was overridden, so
-             * that an OnSet event can be emmitted for it.
+             * that an OnSet event can be emitted for it.
              * Note that this is different from a component that was overridden
              * after it was inherited, as this does not change the actual value
              * of the component for the entity (it is copied from the existing
@@ -611,14 +609,14 @@ void flecs_emit_forward_id(
     it->sources[0] = tgt;
     it->event_id = id;
     it->ptrs[0] = NULL;
-    it->sizes[0] = 0;
+    ECS_CONST_CAST(int32_t*, it->sizes)[0] = 0; /* safe, owned by observer */
 
     int32_t storage_i = ecs_table_type_to_column_index(tgt_table, column);
     if (storage_i != -1) {
         ecs_assert(idr->type_info != NULL, ECS_INTERNAL_ERROR, NULL);
         ecs_column_t *c = &tgt_table->data.columns[storage_i];
         it->ptrs[0] = ecs_vec_get(&c->data, c->ti->size, offset);
-        it->sizes[0] = c->ti->size;
+        ECS_CONST_CAST(int32_t*, it->sizes)[0] = c->ti->size; /* safe, see above */
     }
 
     ecs_table_record_t *tr = flecs_id_record_get_table(idr, table);
@@ -844,7 +842,7 @@ void flecs_emit_forward_table_up(
         ecs_id_t id = ids[i];
         ecs_table_record_t *tgt_tr = &tgt_table->_->records[i];
         ecs_id_record_t *idr = (ecs_id_record_t*)tgt_tr->hdr.cache;
-        if (inherit && (idr->flags & EcsIdDontInherit)) {
+        if (inherit && !(idr->flags & EcsIdOnInstantiateInherit)) {
             continue;
         }
 
@@ -1095,9 +1093,10 @@ void flecs_emit_forward(
 void flecs_emit(
     ecs_world_t *world,
     ecs_world_t *stage,
+    ecs_flags64_t set_mask,
     ecs_event_desc_t *desc)
 {
-    ecs_poly_assert(world, ecs_world_t);
+    flecs_poly_assert(world, ecs_world_t);
     ecs_check(desc != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_check(desc->event != 0, ECS_INVALID_PARAMETER, NULL);
     ecs_check(desc->event != EcsWildcard, ECS_INVALID_PARAMETER, NULL);
@@ -1120,9 +1119,9 @@ void flecs_emit(
     ecs_flags32_t table_flags = table->flags;
 
     /* Deferring cannot be suspended for observers */
-    int32_t defer = world->stages[0].defer;
+    int32_t defer = world->stages[0]->defer;
     if (defer < 0) {
-        world->stages[0].defer *= -1;
+        world->stages[0]->defer *= -1;
     }
 
     /* Table events are emitted for internal table operations only, and do not
@@ -1132,10 +1131,6 @@ void flecs_emit(
         /* If no count is provided, forward event for all entities in table */
         count = ecs_table_count(table) - offset;
     }
-
-    /* When the NoOnSet flag is provided, no OnSet/UnSet events should be 
-     * generated when new components are inherited. */
-    bool no_on_set = desc->flags & EcsEventNoOnSet;
 
     /* The world event id is used to determine if an observer has already been
      * triggered for an event. Observers for multiple components are split up
@@ -1174,15 +1169,14 @@ void flecs_emit(
 
     /* Event records contain all observers for a specific event. In addition to
      * the emitted event, also request data for the Wildcard event (for 
-     * observers subscribing to the wildcard event), OnSet and UnSet events. The
-     * latter to are used for automatically emitting OnSet/UnSet events for 
+     * observers subscribing to the wildcard event), OnSet events. The
+     * latter to are used for automatically emitting OnSet events for 
      * inherited components, for example when an IsA relationship is added to an
      * entity. This doesn't add much overhead, as fetching records is cheap for
      * builtin event types. */
     const ecs_event_record_t *er = flecs_event_record_get_if(observable, event);
     const ecs_event_record_t *wcer = flecs_event_record_get_if(observable, EcsWildcard);
     const ecs_event_record_t *er_onset = flecs_event_record_get_if(observable, EcsOnSet);
-    const ecs_event_record_t *er_unset = flecs_event_record_get_if(observable, EcsUnSet);
 
     ecs_data_t *storage = NULL;
     ecs_column_t *columns = NULL;
@@ -1210,13 +1204,7 @@ void flecs_emit(
     /* Does table has observed entities */
     bool has_observed = table_flags & EcsTableHasTraversable;
 
-    /* When a relationship is removed, the events reachable through that 
-     * relationship should emit UnSet events. This is part of the behavior that
-     * allows observers to be agnostic of whether a component is inherited. */
-    bool can_unset = count && (event == EcsOnRemove) && !no_on_set;
-
     ecs_event_id_record_t *iders[5] = {0};
-    int32_t unset_count = 0;
 
     if (count && can_forward && has_observed) {
         flecs_emit_propagate_invalidate(world, table, offset, count);
@@ -1242,18 +1230,29 @@ repeat_event:
         bool is_pair = ECS_IS_PAIR(id);
         void *override_ptr = NULL;
         ecs_entity_t base = 0;
+        bool id_can_override = can_override;
+        ecs_flags64_t id_bit = 1llu << i;
+        if (id_bit & set_mask) {
+            /* Component is already set, so don't override with prefab value */
+            id_can_override = false;
+        }
 
         /* Check if this id is a pair of an traversable relationship. If so, we 
          * may have to forward ids from the pair's target. */
-        if ((can_forward && is_pair) || can_override) {
-            idr = flecs_query_id_record_get(world, id);
+        if ((can_forward && is_pair) || id_can_override) {
+            idr = flecs_id_record_get(world, id);
+            if (!idr) {
+                /* Possible for union ids */
+                continue;
+            }
+
             ecs_flags32_t idr_flags = idr->flags;
 
             if (is_pair && (idr_flags & EcsIdTraversable)) {
                 const ecs_event_record_t *er_fwd = NULL;
                 if (ECS_PAIR_FIRST(id) == EcsIsA) {
                     if (event == EcsOnAdd) {
-                        if (!world->stages[0].base) {
+                        if (!world->stages[0]->base) {
                             /* Adding an IsA relationship can trigger prefab
                              * instantiation, which can instantiate prefab 
                              * hierarchies for the entity to which the 
@@ -1263,17 +1262,14 @@ repeat_event:
                             /* Setting this value prevents flecs_instantiate 
                              * from being called recursively, in case prefab
                              * children also have IsA relationships. */
-                            world->stages[0].base = tgt;
+                            world->stages[0]->base = tgt;
                             flecs_instantiate(world, tgt, table, offset, count);
-                            world->stages[0].base = 0;
+                            world->stages[0]->base = 0;
                         }
 
                         /* Adding an IsA relationship will emit OnSet events for
                          * any new reachable components. */
                         er_fwd = er_onset;
-                    } else if (event == EcsOnRemove) {
-                        /* Vice versa for removing an IsA relationship. */
-                        er_fwd = er_unset;
                     }
                 }
 
@@ -1282,7 +1278,7 @@ repeat_event:
                 ecs_assert(it.event_cur == evtx, ECS_INTERNAL_ERROR, NULL);
             }
 
-            if (can_override && (!(idr_flags & EcsIdDontInherit))) {
+            if (id_can_override && !(idr_flags & EcsIdOnInstantiateDontInherit)) {
                 /* Initialize overridden components with value from base */
                 ti = idr->type_info;
                 if (ti) {
@@ -1292,13 +1288,18 @@ repeat_event:
                     if (base_column != -1) {
                         /* Base found with component */
                         ecs_table_t *base_table = base_tr->hdr.table;
-                        base_column = base_tr->column;
-                        ecs_assert(base_column != -1, ECS_INTERNAL_ERROR, NULL);
-                        ecs_record_t *base_r = flecs_entities_get(world, base);
-                        ecs_assert(base_r != NULL, ECS_INTERNAL_ERROR, NULL);
-                        int32_t base_row = ECS_RECORD_TO_ROW(base_r->row);
-                        ecs_vec_t *base_v = &base_table->data.columns[base_column].data;
-                        override_ptr = ecs_vec_get(base_v, ti->size, base_row);
+                        if (idr->flags & EcsIdIsSparse) {
+                            override_ptr = flecs_sparse_get_any(
+                                idr->sparse, 0, base);
+                        } else {
+                            base_column = base_tr->column;
+                            ecs_assert(base_column != -1, ECS_INTERNAL_ERROR, NULL);
+                            ecs_record_t *base_r = flecs_entities_get(world, base);
+                            ecs_assert(base_r != NULL, ECS_INTERNAL_ERROR, NULL);
+                            int32_t base_row = ECS_RECORD_TO_ROW(base_r->row);
+                            ecs_vec_t *base_v = &base_table->data.columns[base_column].data;
+                            override_ptr = ecs_vec_get(base_v, ti->size, base_row);
+                        }
                     }
                 }
             }
@@ -1310,16 +1311,8 @@ repeat_event:
              * example, both observers for (ChildOf, p) and (ChildOf, *) would
              * match an event for (ChildOf, p). */
             ider_count = flecs_event_observers_get(er, id, iders);
-            idr = idr ? idr : flecs_query_id_record_get(world, id);
+            idr = idr ? idr : flecs_id_record_get(world, id);
             ecs_assert(idr != NULL, ECS_INTERNAL_ERROR, NULL);
-        }
-
-        if (can_unset) {
-            /* Increase UnSet count in case this is a component (has data). This
-             * will cause the event loop to be ran again as UnSet event. */
-            idr = idr ? idr : flecs_query_id_record_get(world, id);
-            ecs_assert(idr != NULL, ECS_INTERNAL_ERROR, NULL);
-            unset_count += (idr->type_info != NULL);
         }
 
         if (!ider_count && !override_ptr) {
@@ -1339,19 +1332,31 @@ repeat_event:
         int32_t column = tr->index, storage_i;
         it.columns[0] = column + 1;
         it.ptrs[0] = NULL;
-        it.sizes[0] = 0;
+        ECS_CONST_CAST(int32_t*, it.sizes)[0] = 0; /* safe, owned by observer */
         it.event_id = id;
         it.ids[0] = id;
 
         if (count) {
             storage_i = tr->column;
-            if (storage_i != -1) {
-                /* If this is a component, fetch pointer & size */
-                ecs_assert(idr->type_info != NULL, ECS_INTERNAL_ERROR, NULL);
-                ecs_column_t *c = &columns[storage_i];
-                ecs_size_t size = c->ti->size;
-                void *ptr = ecs_vec_get(&c->data, size, offset);
-                it.sizes[0] = size;
+            bool is_sparse = idr->flags & EcsIdIsSparse;
+            if (storage_i != -1 || is_sparse) {
+                void *ptr;
+                ecs_size_t size = idr->type_info->size;
+
+                if (is_sparse) {
+                    ecs_assert(count == 1, ECS_UNSUPPORTED, 
+                        "events for multiple entities are currently unsupported"
+                        " for sparse components");
+                    ecs_entity_t e = flecs_table_entities_array(table)[offset];
+                    ptr = flecs_sparse_get(idr->sparse, 0, e);
+                } else{
+                    ecs_assert(idr->type_info != NULL, ECS_INTERNAL_ERROR, NULL);
+                    ecs_column_t *c = &columns[storage_i];
+                    ptr = ecs_vec_get(&c->data, size, offset);
+                }
+
+                /* safe, owned by observer */
+                ECS_CONST_CAST(int32_t*, it.sizes)[0] = size;
 
                 if (override_ptr) {
                     if (event == EcsOnAdd) {
@@ -1384,17 +1389,13 @@ repeat_event:
                                 ecs_assert(it.event_cur == evtx, 
                                     ECS_INTERNAL_ERROR, NULL);
                             }
+
                             it.sources[0] = 0;
                         }
                     }
                 }
 
                 it.ptrs[0] = ptr;
-            } else {
-                if (it.event == EcsUnSet) {
-                    /* Only valid for components, not tags */
-                    continue;
-                }
             }
         }
 
@@ -1420,16 +1421,7 @@ repeat_event:
     }
 
     can_override = false; /* Don't override twice */
-    can_unset = false; /* Don't unset twice */
     can_forward = false; /* Don't forward twice */
-
-    if (unset_count && er_unset && (er != er_unset)) {
-        /* Repeat event loop for UnSet event */
-        unset_count = 0;
-        er = er_unset;
-        it.event = EcsUnSet;
-        goto repeat_event;
-    }
 
     if (wcer && er != wcer) {
         /* Repeat event loop for Wildcard event */
@@ -1439,7 +1431,7 @@ repeat_event:
     }
 
 error:
-    world->stages[0].defer = defer;
+    world->stages[0]->defer = defer;
 
     if (measure_time) {
         world->info.emit_time_total += (ecs_ftime_t)ecs_time_measure(&t);
@@ -1489,7 +1481,9 @@ void ecs_emit(
         desc->const_param = NULL;
     }
 
-    flecs_emit(world, stage, desc);
+    ecs_defer_begin(world);
+    flecs_emit(world, stage, 0, desc);
+    ecs_defer_end(world);
 
     if (desc->ids == &default_ids) {
         desc->ids = NULL;
@@ -1502,11 +1496,11 @@ void ecs_enqueue(
     ecs_world_t *world,
     ecs_event_desc_t *desc)
 {
-    ecs_check(ecs_is_deferred(world), ECS_INVALID_PARAMETER, 
-        "can't enqueue if not in deferred mode");
-    ecs_stage_t *stage = flecs_stage_from_world(&world);
+    if (!ecs_is_deferred(world)) {
+        ecs_emit(world, desc);
+        return;
+    }
 
+    ecs_stage_t *stage = flecs_stage_from_world(&world);
     flecs_enqueue(world, stage, desc);
-error:
-    return;
 }

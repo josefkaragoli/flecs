@@ -63,15 +63,15 @@ void SimpleModuleImport(
     ECS_COMPONENT_DEFINE(world, SimpleFooComponent);
 
     ECS_TAG_DEFINE(world, Tag);
-    ECS_ENTITY_DEFINE(world, Entity, 0);
+    ECS_ENTITY_DEFINE(world, Entity, #0);
     
     ECS_SYSTEM_DEFINE(world, Move, EcsOnUpdate, Position, Velocity);
     ECS_SYSTEM_DEFINE(world, SimpleFooSystem, EcsOnUpdate, Position);
     ECS_OBSERVER_DEFINE(world, SimpleFooTrigger, EcsOnAdd, Position);
 
     ECS_TAG_DEFINE(world, SimpleFooTag);
-    ECS_ENTITY_DEFINE(world, SimpleFooEntity, 0);
-    ECS_PREFAB_DEFINE(world, SimpleFooPrefab, 0);
+    ECS_ENTITY_DEFINE(world, SimpleFooEntity, #0);
+    ECS_PREFAB_DEFINE(world, SimpleFooPrefab, #0);
     ECS_PIPELINE_DEFINE(world, SimpleFooPipeline, flecs.system.System, Tag);
     ECS_TAG_DEFINE(world, Simple_underscore);
 }
@@ -83,7 +83,7 @@ void Modules_simple_module(void) {
 
     ECS_IMPORT(world, SimpleModule);
 
-    ecs_entity_t e = ecs_new(world, Position);
+    ecs_entity_t e = ecs_new_w(world, Position);
     test_assert(e != 0);
     test_assert( ecs_has(world, e, Position));
     
@@ -107,7 +107,7 @@ void Modules_import_module_from_system(void) {
     ECS_IMPORT(world, SimpleModule);
     ECS_SYSTEM(world, AddVtoP, EcsOnUpdate, simple.module.Position);
 
-    ecs_entity_t e = ecs_new(world, Position);
+    ecs_entity_t e = ecs_new_w(world, Position);
     test_assert(e != 0);
     test_assert( ecs_has(world, e, Position));
 
@@ -299,7 +299,7 @@ void Modules_nested_module(void) {
     ecs_entity_t e = ecs_lookup(world, "nested.module.Component");
     test_assert(e != 0);
 
-    char *path = ecs_get_fullpath(world, e);
+    char *path = ecs_get_path(world, e);
     test_str(path, "nested.module.Component");
     ecs_os_free(path);
 
@@ -325,7 +325,7 @@ void Modules_module_tag_on_namespace(void) {
 void Modules_module_tag_on_namespace_on_add(void) {
     ecs_world_t *world = ecs_init();
 
-    ecs_entity_t parent = ecs_new_id(world);
+    ecs_entity_t parent = ecs_new(world);
     test_assert(parent != 0);
 
     ecs_entity_t child = ecs_new_w_pair(world, EcsChildOf, parent);
@@ -341,7 +341,7 @@ void Modules_module_tag_on_namespace_on_add(void) {
 void Modules_module_tag_on_namespace_on_add_2_levels(void) {
     ecs_world_t *world = ecs_init();
 
-    ecs_entity_t root = ecs_new_id(world);
+    ecs_entity_t root = ecs_new(world);
     test_assert(root != 0);
 
     ecs_entity_t parent = ecs_new_w_pair(world, EcsChildOf, root);
@@ -369,14 +369,14 @@ void Modules_import_2_worlds(void) {
     test_assert(ecs_lookup(world_2, "simple.module") != 0);
 
     {
-        ecs_entity_t e = ecs_new(world_1, Position);
+        ecs_entity_t e = ecs_new_w(world_1, Position);
         test_assert(e != 0);
         test_assert( ecs_has(world_1, e, Position));
         ecs_add(world_1, e, Velocity);
         test_assert( ecs_has(world_1, e, Velocity));
     }
     {
-        ecs_entity_t e = ecs_new(world_2, Position);
+        ecs_entity_t e = ecs_new_w(world_2, Position);
         test_assert(e != 0);
         test_assert( ecs_has(world_2, e, Position));
         ecs_add(world_2, e, Velocity);
@@ -391,11 +391,11 @@ void Modules_import_monitor_2_worlds(void) {
     ecs_world_t *world_1 = ecs_init();
     ecs_world_t *world_2 = ecs_init();
 
-    ECS_IMPORT(world_1, FlecsMonitor);
-    ECS_IMPORT(world_2, FlecsMonitor);
+    ECS_IMPORT(world_1, FlecsStats);
+    ECS_IMPORT(world_2, FlecsStats);
     
-    test_assert(ecs_exists(world_1, ecs_id(FlecsMonitor)));
-    test_assert(ecs_exists(world_2, ecs_id(FlecsMonitor)));
+    test_assert(ecs_exists(world_1, ecs_id(FlecsStats)));
+    test_assert(ecs_exists(world_2, ecs_id(FlecsStats)));
 
     ecs_fini(world_1);
     ecs_fini(world_2);
@@ -404,9 +404,9 @@ void Modules_import_monitor_2_worlds(void) {
 void Modules_import_monitor_after_mini(void) {
     ecs_world_t *world = ecs_mini();
 
-    ECS_IMPORT(world, FlecsMonitor);
+    ECS_IMPORT(world, FlecsStats);
 
-    test_assert(ecs_exists(world, ecs_id(FlecsMonitor)));
+    test_assert(ecs_exists(world, ecs_id(FlecsStats)));
 
     ecs_fini(world);
 }
@@ -414,7 +414,7 @@ void Modules_import_monitor_after_mini(void) {
 void Modules_component_parent_becomes_module(void) {
     ecs_world_t *world = ecs_mini();
 
-    ecs_entity_t parent = ecs_new_id(world);
+    ecs_entity_t parent = ecs_new(world);
     ecs_entity_t comp = ecs_new_w_pair(world, EcsChildOf, parent);
 
     test_assert(!ecs_has_id(world, parent, EcsModule));

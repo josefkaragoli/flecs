@@ -1,5 +1,5 @@
 /**
- * @file id_index.h
+ * @file storage/id_index.h
  * @brief Index for looking up tables by (component) id.
  */
 
@@ -52,6 +52,9 @@ struct ecs_id_record_t {
     /* Name lookup index (currently only used for ChildOf pairs) */
     ecs_hashmap_t *name_index;
 
+    /* Storage for sparse components or union relationships */
+    void *sparse;
+
     /* Lists for all id records that match a pair wildcard. The wildcard id
      * record is at the head of the list. */
     ecs_id_record_elem_t first;   /* (R, *) */
@@ -69,19 +72,12 @@ struct ecs_id_record_t {
      * queried for. */
     int32_t keep_alive;
 
-    /* Cache invalidation counter */
+    /* Cache for finding components that are reachable through a relationship */
     ecs_reachable_cache_t reachable;
 };
 
 /* Get id record for id */
 ecs_id_record_t* flecs_id_record_get(
-    const ecs_world_t *world,
-    ecs_id_t id);
-
-/* Get id record for id for searching.
- * Same as flecs_id_record_get, but replaces (R, *) with (Union, R) if R is a
- * union relationship. */
-ecs_id_record_t* flecs_query_id_record_get(
     const ecs_world_t *world,
     ecs_id_t id);
 
@@ -135,6 +131,11 @@ ecs_table_record_t* flecs_table_record_get(
 ecs_table_record_t* flecs_id_record_get_table(
     const ecs_id_record_t *idr,
     const ecs_table_t *table);
+
+/* Init sparse storage */
+void flecs_id_record_init_sparse(
+    ecs_world_t *world,
+    ecs_id_record_t *idr);
 
 /* Bootstrap cached id records */
 void flecs_init_id_records(
